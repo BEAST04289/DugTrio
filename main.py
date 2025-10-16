@@ -44,7 +44,8 @@ def get_project_data(project_name: str, db: Session = Depends(get_db)) -> Dict[s
         POSITIVE_LABEL = 'LABEL_2'
         
         # The list comprehension safely filters the list retrieved from the DB
-        positive_tweets = [t for t in tweets if t.sentiment_label == POSITIVE_LABEL]
+        # Use getattr to avoid static type-checker confusion about SQLAlchemy Column types
+        positive_tweets = [t for t in tweets if getattr(t, "sentiment_label", None) == POSITIVE_LABEL]
         
         total_analyzed = len(tweets) 
         
