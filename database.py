@@ -3,27 +3,28 @@ from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
+from typing import Generator
 
 # Load environment variables from .env file
 load_dotenv()
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:
-    raise ValueError("DATABASE_URL not found in .env file. Please check your configuration.")
+    raise ValueError("DATABASE_URL not found in .env file.")
 
-# The engine is the core interface to the database.
+# FIX: Ensure correct driver is used for PostgreSQL
+if DATABASE_URL.startswith("postgresql://"):
+    DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+psycopg2://", 1)
+
 engine = create_engine(DATABASE_URL)
 
-# SessionLocal class is a factory for creating new, individual database sessions.
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-# Base class for all our SQLAlchemy models to inherit from.
 Base = declarative_base()
 
 
-# NEW FEATURE: A dependency to manage database sessions.
-# This ensures that every database session is correctly closed after use.
-def get_db():
+def get_db() -> Generator:
+    """Dependency function to get and yield a database session for FastAPI."""
     db = SessionLocal()
     try:
         yield db
@@ -31,9 +32,8 @@ def get_db():
         db.close()
 
 
-# --- Utility function for initial database setup ---
 def create_all_tables():
-    """Creates all tables in the database defined by models inheriting from Base."""
+    """Creates all tables in the database defined by models."""
     print("Attempting to create tables...")
     try:
         Base.metadata.create_all(bind=engine)

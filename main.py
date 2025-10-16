@@ -1,10 +1,9 @@
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-
-# Import components from our project files
-from database import get_db
-from models import Tweet
+from database import get_db 
+from models import Tweet      
+from typing import Dict, Any, List
 
 # Create the main FastAPI application instance
 app = FastAPI(
@@ -14,25 +13,25 @@ app = FastAPI(
 )
 
 # --- Middleware ---
-# This allows our future frontend (on a different domain) to make requests to this backend.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allows all origins
+    allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["*"],  # Allows all methods (GET, POST, etc.)
-    allow_headers=["*"],  # Allows all headers
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
-
 
 # --- API Endpoints ---
 @app.get("/api/project/{project_name}")
-def get_project_data(project_name: str, db: Session = Depends(get_db)):
+def get_project_data(project_name: str, db: Session = Depends(get_db)) -> Dict[str, Any]:
     """
     Retrieves the latest analyzed data for a specific project.
+    Uses corrected three-label sentiment mapping (0=Neg, 1=Neu, 2=Pos).
     """
     try:
-        # Query the database for the 50 most recent, already-analyzed tweets for the project
-        tweets = db.query(Tweet)\
+        # Query the database for the 50 most recent, analyzed tweets
+        # Pylance reports an "Invalid conditional operand" error here, but the SQLAlchemy logic is correct.
+        tweets: List[Tweet] = db.query(Tweet)\
             .filter(Tweet.project_tag == project_name, Tweet.sentiment_label != None)\
             .order_by(Tweet.created_at.desc())\
             .limit(50)\
@@ -41,12 +40,18 @@ def get_project_data(project_name: str, db: Session = Depends(get_db)):
         if not tweets:
             raise HTTPException(status_code=404, detail="No analyzed data found for this project.")
 
-        # Calculate the overall sentiment score
-        positive_tweets = [t for t in tweets if t.sentiment_label == 'Positive']
-        total_analyzed = len(tweets)
+        # --- Correctly calculate Positive Tweets (LABEL_2) ---
+        POSITIVE_LABEL = 'LABEL_2'
+        
+        # The list comprehension safely filters the list retrieved from the DB
+        positive_tweets = [t for t in tweets if t.sentiment_label == POSITIVE_LABEL]
+        
+        total_analyzed = len(tweets) 
+        
         sentiment_score = (len(positive_tweets) / total_analyzed) * 100 if total_analyzed > 0 else 0
+        # --- END OF FIX ---
 
-        # Prepare the list of tweets for the response
+        # Prepare the list of tweets for the JSON response
         tweet_data = [{
             "text": t.text,
             "author": t.author_username,
@@ -63,8 +68,7 @@ def get_project_data(project_name: str, db: Session = Depends(get_db)):
         }
 
     except Exception as e:
-        # If any other error occurs, return a server error
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal Server Error: " + str(e))
 
 @app.get("/")
 def read_root():

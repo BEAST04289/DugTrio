@@ -2,31 +2,42 @@ import os
 import tweepy
 from dotenv import load_dotenv
 from sqlalchemy.orm import Session
+from datetime import datetime, timedelta
+from typing import Dict, Any, List
 
-# Import the specific components from our project files
 from database import SessionLocal
 from models import Tweet
 
+# Load environment variables (needed to authenticate X client)
+load_dotenv()
+
 def fetch_and_store(db: Session, client: tweepy.Client, project_tag: str, search_query: str):
-    """
-    Fetches recent tweets for a given query, checks for duplicates,
-    and stores new tweets in the database.
-    """
+    """Fetches recent tweets and stores new, unique tweets in the database."""
     print(f"--- Fetching tweets for: {project_tag} ---")
+    
+    start_time = datetime.utcnow() - timedelta(hours=24)
+    start_time_str = start_time.strftime('%Y-%m-%dT%H:%M:%SZ')
+    
     try:
         response = client.search_recent_tweets(
             query=search_query,
             max_results=50,
+            start_time=start_time_str,
             tweet_fields=["created_at"],
             expansions=["author_id"]
         )
 
-        if not response.data:
+        # FIX: Explicitly check for response.data existence before proceeding
+        # This handles the "Cannot access attribute 'data'" error when no results are found.
+        if not response.data: 
             print(f"No new tweets found for {project_tag}.")
             return
 
-        tweets = response.data
-        users = {user["id"]: user for user in response.includes["users"]}
+        tweets: List[Any] = response.data
+        
+        # Safely extract user mapping from includes, defaulting to empty dict
+        includes: Dict[str, Any] = response.includes or {} 
+        users: Dict[str, Any] = {user["id"]: user for user in includes.get("users", [])}
         new_tweets_count = 0
 
         for tweet in tweets:
@@ -35,7 +46,7 @@ def fetch_and_store(db: Session, client: tweepy.Client, project_tag: str, search
                 new_tweet = Tweet(
                     tweet_id=str(tweet.id),
                     text=tweet.text,
-                    author_username=users[tweet.author_id].username,
+                    author_username=users.get(tweet.author_id, {}).get("username", "Unknown"),
                     created_at=tweet.created_at,
                     project_tag=project_tag
                 )
@@ -47,12 +58,8 @@ def fetch_and_store(db: Session, client: tweepy.Client, project_tag: str, search
     except Exception as e:
         print(f"An error occurred while fetching tweets for {project_tag}: {e}")
 
-
 def main():
-    """
-    Main function to orchestrate the data fetching process using Bearer Token authentication.
-    """
-    load_dotenv()
+    """Main function to orchestrate the data fetching process."""
 
     try:
         bearer_token = os.getenv("BEARER_TOKEN")
@@ -60,19 +67,15 @@ def main():
             raise ValueError("BEARER_TOKEN not found in .env file.")
         
         client = tweepy.Client(bearer_token=bearer_token)
-        print("✅ Successfully authenticated with X.com API using Bearer Token.")
+        print("✅ Successfully authenticated with X.com API.")
     except Exception as e:
         print(f"❌ Error authenticating with X.com API: {e}")
         return
 
     db = SessionLocal()
 
-    # MODIFICATION: We are only tracking one project for now to avoid rate limits.
     projects_to_track = [
         {'name': 'Solana', 'query': '"Solana" OR "$SOL" -is:retweet lang:en'},
-        # {'name': 'Jupiter', 'query': '"Jupiter Exchange" OR "$JUP" -is:retweet lang:en'},
-        # {'name': 'Pyth Network', 'query': '"Pyth Network" OR "$PYTH" -is:retweet lang:en'},
-        # {'name': 'Bonk', 'query': '"Bonk" OR "$BONK" -is:retweet lang:en'}
     ]
 
     try:
@@ -82,13 +85,14 @@ def main():
         print("\nCommitting all new tweets to the database...")
         db.commit()
         print("✅ Successfully saved new data.")
+    
     except Exception as e:
         print(f"❌ A database error occurred: {e}")
         db.rollback()
+    
     finally:
         print("Closing database session.")
         db.close()
 
-# This is the standard entry point for a Python script.
 if __name__ == "__main__":
     main()
