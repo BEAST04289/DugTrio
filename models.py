@@ -44,3 +44,15 @@ class TrackedWallet(Base):
 
     def __repr__(self):
         return f"<TrackedWallet(user_id={self.user_id}, address='{self.wallet_address}')>"
+
+
+# This model stores user requests for new projects to be tracked.
+class TrackRequest(Base):
+    __tablename__ = 'track_requests'
+
+    id = Column(Integer, primary_key=True, index=True)
+    project_name = Column(String, unique=True, nullable=False, index=True)
+    requested_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    def __repr__(self):
+        return f"<TrackRequest(id={self.id}, project_name='{self.project_name}')>"
