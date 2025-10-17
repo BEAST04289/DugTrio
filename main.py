@@ -7,6 +7,9 @@ from sqlalchemy import and_, func, case
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from datetime import datetime, timedelta
+
+from database import get_db
+from models import Tweet, TrackRequest, PnlCard
 from typing import Dict, Any, List
 
 from database import get_db, SessionLocal
