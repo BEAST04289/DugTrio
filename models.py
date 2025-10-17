@@ -87,3 +87,17 @@ class TrackRequest(Base):
 
     def __repr__(self):
         return f"<TrackRequest(id={self.id}, project_name='{self.project_name}')>"
+
+
+# This model stores the results of the trend analysis.
+class TrendingProject(Base):
+    __tablename__ = 'trending_projects'
+
+    id = Column(Integer, primary_key=True, index=True)
+    project_name = Column(String, index=True, nullable=False)
+    mention_count = Column(Integer, nullable=False)
+    trend_score = Column(Float, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    def __repr__(self):
+        return f"<TrendingProject(project_name='{self.project_name}', score={self.trend_score})>"
