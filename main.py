@@ -7,7 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from datetime import datetime, timedelta
 
 from database import get_db
-from models import Tweet, TrackRequest
+from models import Tweet, TrackRequest, PnlCard, TrendingProject
 from typing import Dict, Any, List
 
 # --- Pydantic Models for Request Body Validation ---
@@ -140,6 +140,58 @@ def get_project_history(project_tag: str, db: Session = Depends(get_db)):
         history_data = [{"date": res.date.isoformat(), "score": round(res.score, 2)} for res in results]
 
         return history_data
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Internal Server Error: " + str(e))
+
+
+@app.get("/api/pnl/{project_name}")
+def get_pnl_data(project_name: str, db: Session = Depends(get_db)):
+    """
+    Retrieves all analyzed PNL card data for a specific project.
+    """
+    try:
+        # Query the database for PnlCard entries related to the project
+        pnl_cards = db.query(PnlCard).join(Tweet).filter(
+            Tweet.project_tag == project_name,
+            PnlCard.analysis_status == 'success'
+        ).all()
+
+        if not pnl_cards:
+            raise HTTPException(status_code=404, detail="No PNL card data found for this project.")
+
+        # Prepare the list of PNL cards for the JSON response
+        pnl_data = [{
+            "tweet_id": card.tweet_id,
+            "entry_price": card.entry_price,
+            "exit_price": card.exit_price,
+            "pnl_percentage": card.pnl_percentage,
+            "token_symbol": card.token_symbol,
+            "media_url": card.tweet.media_url,
+            "tweet_text": card.tweet.text
+        } for card in pnl_cards]
+
+        return {
+            "project_name": project_name,
+            "pnl_cards": pnl_data
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Internal Server Error: " + str(e))
+
+
+@app.get("/api/trending")
+def get_trending_projects(db: Session = Depends(get_db)):
+    """
+    Retrieves the list of currently trending projects.
+    """
+    try:
+        trending_projects = db.query(TrendingProject).order_by(TrendingProject.trend_score.desc()).all()
+
+        if not trending_projects:
+            raise HTTPException(status_code=404, detail="No trending projects found at the moment.")
+
+        return trending_projects
 
     except Exception as e:
         raise HTTPException(status_code=500, detail="Internal Server Error: " + str(e))

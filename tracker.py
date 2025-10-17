@@ -17,14 +17,14 @@ def fetch_and_store(db: Session, client: tweepy.Client, project_tag: str, search
     
     start_time = datetime.utcnow() - timedelta(hours=24)
     start_time_str = start_time.strftime('%Y-%m-%dT%H:%M:%SZ')
-    
+
     try:
         response = client.search_recent_tweets(
             query=search_query,
             max_results=50,
             start_time=start_time_str,
-            tweet_fields=["created_at"],
-            expansions=["author_id"]
+            tweet_fields=["created_at", "attachments"],
+            expansions=["author_id", "attachments.media_keys"]
         )
 
         # FIX: Explicitly check for response.data existence before proceeding
@@ -35,20 +35,28 @@ def fetch_and_store(db: Session, client: tweepy.Client, project_tag: str, search
 
         tweets: List[Any] = response.data
         
-        # Safely extract user mapping from includes, defaulting to empty dict
-        includes: Dict[str, Any] = response.includes or {} 
+        # Safely extract user and media mappings from includes, defaulting to empty dicts
+        includes: Dict[str, Any] = response.includes or {}
         users: Dict[str, Any] = {user["id"]: user for user in includes.get("users", [])}
+        media: Dict[str, Any] = {m["media_key"]: m for m in includes.get("media", [])}
         new_tweets_count = 0
 
         for tweet in tweets:
             exists = db.query(Tweet).filter(Tweet.tweet_id == str(tweet.id)).first()
             if not exists:
+                media_url = None
+                if tweet.attachments and tweet.attachments.get("media_keys"):
+                    media_key = tweet.attachments["media_keys"][0]
+                    if media.get(media_key, {}).get("type") == "photo":
+                        media_url = media[media_key].get("url")
+
                 new_tweet = Tweet(
                     tweet_id=str(tweet.id),
                     text=tweet.text,
                     author_username=users.get(tweet.author_id, {}).get("username", "Unknown"),
                     created_at=tweet.created_at,
-                    project_tag=project_tag
+                    project_tag=project_tag,
+                    media_url=media_url
                 )
                 db.add(new_tweet)
                 new_tweets_count += 1
