@@ -9,7 +9,7 @@ from models import Tweet, Column # Ensure Column is available for type analysis
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 
-def analyze_and_update_sentiment():
+async def analyze_and_update_sentiment():
     """
     Finds tweets without sentiment, analyzes them using an AI model,
     and updates the database with the results.
