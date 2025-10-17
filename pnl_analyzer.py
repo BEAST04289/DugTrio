@@ -35,19 +35,49 @@ def extract_text_from_image(image: Image.Image) -> str:
         return ""
 
 def parse_pnl_data(text: str) -> dict:
-    """Parses extracted text to find PNL-related data."""
-    # This is a placeholder for the parsing logic.
-    # It will be implemented with more sophisticated regex and parsing rules.
+    """
+    Parses extracted text to find PNL-related data using a series of regular expressions.
+    This is a more robust implementation to handle various PNL card formats.
+    """
     data = {
         "entry_price": None,
         "exit_price": None,
         "pnl_percentage": None,
         "token_symbol": None,
     }
-    # Example parsing (will need to be much more robust)
-    pnl_match = re.search(r'([\+\-]\d+\.\d+)%', text)
+
+    # Normalize text for easier parsing
+    text = text.lower()
+
+    # --- PNL Percentage Extraction ---
+    # Look for patterns like "+123.45%", "-50.2%", "PNL: 30%", etc.
+    pnl_match = re.search(r'(pnl|profit|loss)\s*:?\s*([\+\-]?\s*\d+(\.\d+)?)\s*%', text)
+    if not pnl_match:
+        pnl_match = re.search(r'([\+\-]\s*\d+(\.\d+)?)\s*%', text)
     if pnl_match:
-        data['pnl_percentage'] = float(pnl_match.group(1))
+        # Extract the numeric part, removing whitespace and the '+' sign
+        pnl_value = pnl_match.group(1).replace(' ', '').replace('+', '')
+        data['pnl_percentage'] = float(pnl_value)
+
+    # --- Token Symbol Extraction ---
+    # Look for common crypto patterns, like a 3-5 letter uppercase word, often preceded by '$'
+    symbol_match = re.search(r'\$([a-z]{3,5})\b', text)
+    if not symbol_match:
+        # Fallback: Look for a 3-5 letter uppercase word near "entry" or "exit"
+        symbol_match = re.search(r'\b([a-z]{3,5})\b\s*(entry|exit)', text)
+    if symbol_match:
+        data['token_symbol'] = symbol_match.group(1).upper()
+
+    # --- Entry and Exit Price Extraction ---
+    # Look for "entry price: $123.45" or "entry: 0.123"
+    entry_match = re.search(r'entry\s*(price)?\s*:?\s*\$?(\d+(\.\d+)?)', text)
+    if entry_match:
+        data['entry_price'] = float(entry_match.group(2))
+
+    exit_match = re.search(r'exit\s*(price)?\s*:?\s*\$?(\d+(\.\d+)?)', text)
+    if exit_match:
+        data['exit_price'] = float(exit_match.group(2))
+
     return data
 
 def analyze_pnl_cards():

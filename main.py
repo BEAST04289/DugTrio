@@ -1,3 +1,5 @@
+import asyncio
+import logging
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -9,6 +11,11 @@ from datetime import datetime, timedelta
 from database import get_db
 from models import Tweet, TrackRequest, PnlCard, TrendingProject
 from typing import Dict, Any, List
+from pnl_analyzer import analyze_pnl_cards
+from trending_analyzer import analyze_and_update_trends
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
 
 # --- Pydantic Models for Request Body Validation ---
 class NewTrackRequest(BaseModel):
@@ -195,6 +202,27 @@ def get_trending_projects(db: Session = Depends(get_db)):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail="Internal Server Error: " + str(e))
+
+
+async def run_analysis_loops():
+    """Background task to run all analysis scripts in a continuous loop."""
+    while True:
+        try:
+            logging.info("--- 🔄 Starting periodic analysis cycle ---")
+            analyze_pnl_cards()
+            analyze_and_update_trends()
+            logging.info("--- ✅ Analysis cycle complete. Waiting for next run... ---")
+        except Exception as e:
+            logging.error(f"An error occurred in the main analysis loop: {e}")
+
+        # Wait for 15 minutes before the next cycle
+        await asyncio.sleep(900)
+
+@app.on_event("startup")
+async def startup_event():
+    """On application startup, create a background task for the analysis loops."""
+    logging.info("🚀 Application startup: Kicking off background analysis task.")
+    asyncio.create_task(run_analysis_loops())
 
 
 @app.get("/")
