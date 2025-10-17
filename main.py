@@ -1,7 +1,6 @@
 import asyncio
 import logging
-import requests
-from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks, File, UploadFile
+from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlalchemy import and_, func, case
@@ -20,7 +19,6 @@ from PIL import Image
 from io import BytesIO
 import re
 import pytesseract
-from typing import Optional
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -441,125 +439,6 @@ def get_trending_projects(db: Session = Depends(get_db)):
     except Exception as e:
         raise HTTPException(status_code=500, detail="Internal Server Error: " + str(e))
 
-
-DEXSCREENER_API_URL = "https://api.dexscreener.com/latest/dex/search"
-
-@app.get("/api/new_pools")
-def new_pools():
-    """
-    Retrieves new liquidity pools from DexScreener.
-    """
-    try:
-        # Search for pairs on the Solana chain
-        params = {"q": "SOL"}
-        response = requests.get(DEXSCREENER_API_URL, params=params)
-        response.raise_for_status()
-        data = response.json()
-
-        pairs = data.get("pairs", [])
-        if not pairs:
-            raise HTTPException(status_code=404, detail="No new pools found.")
-
-        # Filter for Solana chain and sort by creation time
-        solana_pairs = [p for p in pairs if p.get('chainId') == 'solana']
-
-        # Sort by pair creation time in descending order
-        solana_pairs.sort(key=lambda x: x.get('pairCreatedAt', 0), reverse=True)
-
-        return solana_pairs[:10]
-
-    except requests.exceptions.RequestException as e:
-        raise HTTPException(status_code=500, detail=f"Error fetching data from DexScreener: {e}")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail="Internal Server Error: " + str(e))
-
-@app.get("/api/top_projects")
-def top_projects(db: Session = Depends(get_db)):
-    """
-    Retrieves the top projects based on a ranking algorithm.
-    """
-    try:
-        # Get sentiment scores for all projects
-        sentiment_scores = db.query(
-            Tweet.project_tag,
-            (func.sum(case((Tweet.sentiment_label == 'LABEL_2', 1), else_=0)) * 100.0 / func.count(Tweet.id)).label('sentiment_score')
-        ).group_by(Tweet.project_tag).all()
-
-        # Get trending scores for all projects
-        trending_scores = db.query(
-            TrendingProject.project_name,
-            TrendingProject.trend_score
-        ).all()
-
-        # Create a dictionary to store the scores for each project
-        project_scores = {}
-        for project, score in sentiment_scores:
-            project_scores[project] = {'sentiment': score, 'trend': 0}
-
-        for project, score in trending_scores:
-            if project in project_scores:
-                project_scores[project]['trend'] = score
-            else:
-                project_scores[project] = {'sentiment': 0, 'trend': score}
-
-        # Calculate the final score for each project
-        ranked_projects = []
-        for project, scores in project_scores.items():
-            # Simple ranking algorithm: 60% sentiment, 40% trend
-            final_score = (0.6 * scores['sentiment']) + (0.4 * scores['trend'])
-            ranked_projects.append({'project_name': project, 'score': final_score})
-
-        # Sort projects by final score in descending order
-        ranked_projects.sort(key=lambda x: x['score'], reverse=True)
-
-        return ranked_projects[:10]
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail="Internal Server Error: " + str(e))
-
-@app.get("/api/calendar")
-def calendar():
-    """
-    Retrieves upcoming crypto events from CoinMarketCal.
-    """
-    try:
-        # NOTE: An API key from CoinMarketCal is required for this endpoint to work.
-        # The user will need to add their API key to the .env file.
-        api_key = os.getenv("COINMARKETCAL_API_KEY")
-        if not api_key:
-            raise HTTPException(status_code=500, detail="COINMARKETCAL_API_KEY not found in .env file.")
-
-        headers = {"x-api-key": api_key}
-        response = requests.get("https://developers.coinmarketcal.com/v1/events", headers=headers)
-        response.raise_for_status()
-        data = response.json()
-        return data
-    except requests.exceptions.RequestException as e:
-        raise HTTPException(status_code=500, detail=f"Error fetching data from CoinMarketCal: {e}")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail="Internal Server Error: " + str(e))
-
-@app.post("/api/pnl/analyze")
-async def analyze_pnl(file: UploadFile = File(...)):
-    """
-    Analyzes a PNL screenshot and returns the extracted data.
-    """
-    try:
-        image_bytes = await file.read()
-        image = Image.open(BytesIO(image_bytes))
-
-        # Perform OCR to extract text
-        extracted_text = pytesseract.image_to_string(image)
-        if not extracted_text:
-            raise HTTPException(status_code=400, detail="Could not extract text from the image.")
-
-        # Parse the text to find PNL data
-        pnl_data = parse_pnl_data(extracted_text)
-
-        return pnl_data
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail="Internal Server Error: " + str(e))
 
 @app.get("/")
 def read_root():

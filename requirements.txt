@@ -12,4 +12,4 @@ sentencepiece
 pytesseract
 requests
 Pillow
-python-telegram-bot
+python-multipart
