@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from typing import Dict, Any, List
 
 from database import SessionLocal
-from models import Tweet
+from models import Tweet, TrackRequest
 
 # Load environment variables (needed to authenticate X client)
 load_dotenv()
@@ -58,6 +58,27 @@ def fetch_and_store(db: Session, client: tweepy.Client, project_tag: str, search
     except Exception as e:
         print(f"An error occurred while fetching tweets for {project_tag}: {e}")
 
+def get_projects_to_track(db: Session) -> List[Dict[str, str]]:
+    """
+    Fetches the list of projects to track from the database.
+    Includes a default project if the table is empty.
+    """
+    print("Querying database for projects to track...")
+    tracked_projects = db.query(TrackRequest).all()
+
+    if not tracked_projects:
+        print("No projects found in the database. Using default 'Solana' project.")
+        return [{'name': 'Solana', 'query': '"Solana" OR "$SOL" -is:retweet lang:en'}]
+
+    projects = []
+    for req in tracked_projects:
+        # Simple query format, can be enhanced later (e.g., adding a ticker symbol)
+        query = f'"{req.project_name}" -is:retweet lang:en'
+        projects.append({'name': req.project_name, 'query': query})
+
+    print(f"Found {len(projects)} projects to track.")
+    return projects
+
 def main():
     """Main function to orchestrate the data fetching process."""
 
@@ -74,11 +95,9 @@ def main():
 
     db = SessionLocal()
 
-    projects_to_track = [
-        {'name': 'Solana', 'query': '"Solana" OR "$SOL" -is:retweet lang:en'},
-    ]
-
     try:
+        projects_to_track = get_projects_to_track(db)
+
         for project in projects_to_track:
             fetch_and_store(db, client, project['name'], project['query'])
         
