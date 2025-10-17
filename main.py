@@ -1,21 +1,21 @@
 import asyncio
 import logging
-import re
-import pytesseract
-import requests
-from PIL import Image
-from io import BytesIO
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlalchemy import and_, func, case
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from datetime import datetime, timedelta
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 
 from database import get_db, SessionLocal
 from models import Tweet, TrackRequest, PnlCard, TrendingProject
+import requests
+from PIL import Image
+from io import BytesIO
+import re
+import pytesseract
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -373,25 +373,14 @@ def analyze_and_update_trends():
 
 # --- Background Task ---
 
-async def run_analysis_loops():
-    """Background task to run all analysis scripts in a continuous loop."""
-    while True:
-        try:
-            logging.info("--- 🔄 Starting periodic analysis cycle ---")
-            analyze_pnl_cards()
-            analyze_and_update_trends()
-            logging.info("--- ✅ Analysis cycle complete. Waiting for next run... ---")
-        except Exception as e:
-            logging.error(f"An error occurred in the main analysis loop: {e}")
-
-        # Wait for 15 minutes before the next cycle
-        await asyncio.sleep(900)
-
-@app.on_event("startup")
-async def startup_event():
-    """On application startup, create a background task for the analysis loops."""
-    logging.info("🚀 Application startup: Kicking off background analysis task.")
-    asyncio.create_task(run_analysis_loops())
+@app.post("/api/run-analysis")
+def run_analysis(background_tasks: BackgroundTasks):
+    """
+    Triggers a background task to run the PNL and trending analysis.
+    """
+    background_tasks.add_task(analyze_pnl_cards)
+    background_tasks.add_task(analyze_and_update_trends)
+    return {"message": "Analysis tasks have been started in the background."}
 
 
 # --- API Endpoints ---
