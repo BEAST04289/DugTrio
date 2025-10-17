@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 
 from database import get_db
 from models import Tweet, TrackRequest, PnlCard
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 
 from database import get_db, SessionLocal
 from models import Tweet, TrackRequest, PnlCard, TrendingProject
@@ -374,13 +374,16 @@ def analyze_and_update_trends():
         db.close()
 
 
+from analyzer import analyze_and_update_sentiment
+
 # --- Background Task ---
 
 @app.post("/api/run-analysis")
 def run_analysis(background_tasks: BackgroundTasks):
     """
-    Triggers a background task to run the PNL and trending analysis.
+    Triggers a background task to run the sentiment, PNL, and trending analysis.
     """
+    background_tasks.add_task(analyze_and_update_sentiment)
     background_tasks.add_task(analyze_pnl_cards)
     background_tasks.add_task(analyze_and_update_trends)
     return {"message": "Analysis tasks have been started in the background."}
