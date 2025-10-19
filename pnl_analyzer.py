@@ -5,7 +5,7 @@ import requests
 from PIL import Image
 from io import BytesIO
 from sqlalchemy.orm import Session
-from typing import List, Optional
+from typing import List, Optional, Dict, Any, cast
 
 from database import SessionLocal
 from models import Tweet, PnlCard
@@ -16,11 +16,14 @@ logging.basicConfig(level=logging.INFO)
 def download_image(url: str) -> Optional[Image.Image]:
     """Downloads an image from a URL and returns a PIL Image object."""
     try:
-        response = requests.get(url)
+        response = requests.get(url, timeout=10)
         response.raise_for_status()
         return Image.open(BytesIO(response.content))
     except requests.exceptions.RequestException as e:
         logging.error(f"Error downloading image from {url}: {e}")
+        return None
+    except Exception as e:
+        logging.error(f"Error opening image: {e}")
         return None
 
 def extract_text_from_image(image: Image.Image) -> str:
@@ -34,22 +37,58 @@ def extract_text_from_image(image: Image.Image) -> str:
         logging.error(f"Error during OCR extraction: {e}")
         return ""
 
-from typing import Dict, Any
-
 def parse_pnl_data(text: str) -> Dict[str, Any]:
     """Parses extracted text to find PNL-related data."""
-    # This is a placeholder for the parsing logic.
-    # It will be implemented with more sophisticated regex and parsing rules.
     data: Dict[str, Any] = {
         "entry_price": None,
         "exit_price": None,
         "pnl_percentage": None,
         "token_symbol": None,
     }
-    # Example parsing (will need to be much more robust)
-    pnl_match = re.search(r'([\+\-]\d+\.\d+)%', text)
+    
+    # Normalize text for easier parsing
+    text = text.lower()
+    
+    # --- PNL Percentage Extraction ---
+    pnl_match = re.search(r'(pnl|profit|loss)\s*:?\s*([\+\-]?\s*\d+(\.\d+)?)\s*%', text)
     if pnl_match:
-        data['pnl_percentage'] = float(pnl_match.group(1))
+        try:
+            pnl_value = pnl_match.group(2).replace(' ', '').replace('+', '')
+            data['pnl_percentage'] = float(pnl_value)
+        except (ValueError, AttributeError) as e:
+            logging.warning(f"Failed to parse PNL percentage: {e}")
+    
+    if data['pnl_percentage'] is None:
+        pnl_match = re.search(r'([\+\-]\s*\d+(\.\d+)?)\s*%', text)
+        if pnl_match:
+            try:
+                pnl_value = pnl_match.group(1).replace(' ', '').replace('+', '')
+                data['pnl_percentage'] = float(pnl_value)
+            except (ValueError, AttributeError) as e:
+                logging.warning(f"Failed to parse PNL percentage from fallback: {e}")
+    
+    # --- Token Symbol Extraction ---
+    symbol_match = re.search(r'\$([a-z]{3,5})\b', text)
+    if not symbol_match:
+        symbol_match = re.search(r'\b([a-z]{3,5})\b\s*(entry|exit)', text)
+    if symbol_match:
+        data['token_symbol'] = symbol_match.group(1).upper()
+    
+    # --- Entry and Exit Price Extraction ---
+    entry_match = re.search(r'entry\s*(price)?\s*:?\s*\$?(\d+(\.\d+)?)', text)
+    if entry_match:
+        try:
+            data['entry_price'] = float(entry_match.group(2))
+        except (ValueError, AttributeError) as e:
+            logging.warning(f"Failed to parse entry price: {e}")
+
+    exit_match = re.search(r'exit\s*(price)?\s*:?\s*\$?(\d+(\.\d+)?)', text)
+    if exit_match:
+        try:
+            data['exit_price'] = float(exit_match.group(2))
+        except (ValueError, AttributeError) as e:
+            logging.warning(f"Failed to parse exit price: {e}")
+    
     return data
 
 def analyze_pnl_cards():
@@ -76,7 +115,8 @@ def analyze_pnl_cards():
         for tweet in tweets_to_process:
             logging.info(f"Processing tweet {tweet.id} with media URL: {tweet.media_url}")
 
-            image = download_image(str(tweet.media_url))
+            # Simplified - media_url is guaranteed to exist from the filter above
+            image = download_image(cast(str, tweet.media_url))
             if not image:
                 # Create a failed PnlCard entry
                 pnl_card = PnlCard(tweet_id=tweet.id, analysis_status='download_failed')

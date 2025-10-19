@@ -27,13 +27,13 @@ def fetch_and_store(db: Session, client: tweepy.Client, project_tag: str, search
             expansions=["author_id", "attachments.media_keys"]
         )
 
-        # Safely pull tweets from the response without directly accessing the dynamic 'data' attribute
-        tweets_data: Any = getattr(response, "data", None)
-        if not tweets_data:
+        # FIX: Explicitly check for response.data existence before proceeding
+        # This handles the "Cannot access attribute 'data'" error when no results are found.
+        if not getattr(response, "data", None):
             print(f"No new tweets found for {project_tag}.")
             return
 
-        tweets: List[Any] = list(tweets_data)
+        tweets: List[Any] = getattr(response, "data", [])
         
         # Safely extract user and media mappings from includes, defaulting to empty dicts
         includes: Dict[str, Any] = getattr(response, "includes", {}) or {}

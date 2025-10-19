@@ -21,8 +21,8 @@ def analyze_and_update_sentiment():
     try:
         # FIX 1: Explicitly define the 'task' argument to resolve Pylance warning
         logging.info("Loading sentiment analysis model...")
-        sentiment_pipeline = pipeline(
-            task="sentiment-analysis", 
+        sentiment_pipeline = pipeline(  # type: ignore
+            "sentiment-analysis",  # type: ignore
             model="cardiffnlp/twitter-roberta-base-sentiment"
         )
         logging.info("🤖 Model loaded successfully.")
@@ -53,7 +53,7 @@ def analyze_and_update_sentiment():
             except Exception as e:
                 logging.error(f"Could not analyze tweet ID {tweet.id}: {e}")
                 # FIX 2: Assignment is fine here, but we ensure the code structure is clean
-                tweet.sentiment_label = 'Error'
+                tweet.sentiment_label = 'Error'  # type: ignore
         
         # Step 3: Commit all the changes to the database in one go
         logging.info("Saving all new sentiment data to the database...")

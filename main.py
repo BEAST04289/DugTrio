@@ -1,24 +1,20 @@
-import asyncio
-import logging
 from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, validator
 from sqlalchemy import and_, func, case
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from datetime import datetime, timedelta
-
-from database import get_db
-from models import Tweet, TrackRequest, PnlCard
-from typing import Dict, Any, List, Optional, cast
+import logging
+import re
+import pytesseract
+import requests
+from typing import Dict, Any, List, Optional
 
 from database import get_db, SessionLocal
 from models import Tweet, TrackRequest, PnlCard, TrendingProject
-import requests
 from PIL import Image
 from io import BytesIO
-import re
-import pytesseract
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -26,6 +22,13 @@ logging.basicConfig(level=logging.INFO)
 # --- Pydantic Models for Request Body Validation ---
 class NewTrackRequest(BaseModel):
     project_name: str
+
+    @validator('project_name')
+    def validate_project_name(cls, v):
+        v = v.strip()
+        if not v or len(v) > 100:
+            raise ValueError('Project name must be between 1 and 100 characters')
+        return v
 
 # --- FastAPI Application Instance ---
 app = FastAPI(
@@ -51,47 +54,48 @@ def get_project_data(project_name: str, db: Session = Depends(get_db)) -> Dict[s
     Uses corrected three-label sentiment mapping (0=Neg, 1=Neu, 2=Pos).
     """
     try:
-        # Query the database for the 50 most recent, analyzed tweets
-        # Pylance reports an "Invalid conditional operand" error here, but the SQLAlchemy logic is correct.
-        tweets: List[Tweet] = db.query(Tweet)\
-            .filter(Tweet.project_tag == project_name, Tweet.sentiment_label != None)\
-            .order_by(Tweet.created_at.desc())\
-            .limit(50)\
-            .all()
+        # Count the number of tweets mentioning the project in the past 24 hours
+        past_24h = datetime.utcnow() - timedelta(hours=24)
+        total_mentions = db.query(Tweet).filter(
+            Tweet.project_tag == project_name,
+            Tweet.created_at >= past_24h
+        ).count()
 
-        if not tweets:
-            raise HTTPException(status_code=404, detail="No analyzed data found for this project.")
+        if total_mentions == 0:
+            raise HTTPException(status_code=404, detail="No recent data found for this project.")
 
-        # --- Correctly calculate Positive Tweets (LABEL_2) ---
-        POSITIVE_LABEL = 'LABEL_2'
-        
-        # The list comprehension safely filters the list retrieved from the DB
-        # Use getattr to avoid static type-checker confusion about SQLAlchemy Column types
-        positive_tweets = [t for t in tweets if getattr(t, "sentiment_label", None) == POSITIVE_LABEL]
-        
-        total_analyzed = len(tweets) 
-        
-        sentiment_score = (len(positive_tweets) / total_analyzed) * 100 if total_analyzed > 0 else 0
-        # --- END OF FIX ---
+        # Calculate the average sentiment score for the past 24 hours
+        avg_sentiment = db.query(func.avg(Tweet.sentiment_score)).filter(
+            Tweet.project_tag == project_name,
+            Tweet.created_at >= past_24h,
+            Tweet.sentiment_score != None
+        ).scalar()
 
-        # Prepare the list of tweets for the JSON response
-        tweet_data = [{
-            "text": t.text,
-            "author": t.author_username,
-            "sentiment": t.sentiment_label,
-            "score": t.sentiment_score
-        } for t in tweets]
-        
-        # Return the final JSON response
+        # Count tweets by sentiment label
+        sentiment_counts = db.query(
+            Tweet.sentiment_label,
+            func.count(Tweet.id)
+        ).filter(
+            Tweet.project_tag == project_name,
+            Tweet.created_at >= past_24h,
+            Tweet.sentiment_label != None
+        ).group_by(Tweet.sentiment_label).all()
+
+        sentiment_breakdown = {label: count for label, count in sentiment_counts}
+
         return {
             "project_name": project_name,
-            "sentiment_score": round(sentiment_score, 2),
-            "analyzed_tweet_count": total_analyzed,
-            "tweets": tweet_data
+            "total_mentions": total_mentions,
+            "average_sentiment_score": round(avg_sentiment, 2) if avg_sentiment else None,
+            "sentiment_breakdown": sentiment_breakdown
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail="Internal Server Error: " + str(e))
+        logging.error(f"Error in get_project_data: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
 
 @app.post("/api/request")
 def request_new_project(request: NewTrackRequest, db: Session = Depends(get_db)):
@@ -100,23 +104,26 @@ def request_new_project(request: NewTrackRequest, db: Session = Depends(get_db))
     Prevents duplicate project entries.
     """
     try:
-        # Create a new TrackRequest object
-        new_request = TrackRequest(project_name=request.project_name)
-
-        # Add it to the session and commit
+        project_name = request.project_name
+        
+        new_request = TrackRequest(project_name=project_name)
         db.add(new_request)
         db.commit()
-
-        return {"status": "success", "message": f"Project '{request.project_name}' has been successfully requested for tracking."}
+        db.refresh(new_request)
+        
+        return {
+            "message": f"Project '{project_name}' has been added to the tracking queue.",
+            "request_id": new_request.id
+        }
 
     except IntegrityError:
-        # This happens if the project_name is not unique
         db.rollback()
-        raise HTTPException(status_code=409, detail=f"Project '{request.project_name}' has already been requested.")
+        raise HTTPException(status_code=400, detail="This project is already being tracked.")
 
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail="Internal Server Error: " + str(e))
+        logging.error(f"Error in request_new_project: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @app.get("/api/history/{project_tag}")
@@ -125,37 +132,41 @@ def get_project_history(project_tag: str, db: Session = Depends(get_db)):
     Retrieves the daily average sentiment score for the last 7 days for a specific project.
     """
     try:
-        # Define the time window for the query
-        seven_days_ago = datetime.utcnow() - timedelta(days=7)
-
-        # Define the case for positive sentiment
-        positive_sentiment = case((Tweet.sentiment_label == 'LABEL_2', 1), else_=0)
-
-        # Query the database to get daily sentiment scores
-        results = db.query(
+        past_7_days = datetime.utcnow() - timedelta(days=7)
+        
+        # Query for daily average sentiment
+        daily_data = db.query(
             func.date(Tweet.created_at).label('date'),
-            (func.sum(positive_sentiment) * 100.0 / func.count(Tweet.id)).label('score')
+            func.avg(Tweet.sentiment_score).label('avg_sentiment'),
+            func.count(Tweet.id).label('mention_count')
         ).filter(
-            and_(
-                Tweet.project_tag == project_tag,
-                Tweet.created_at >= seven_days_ago
-            )
-        ).group_by(
-            func.date(Tweet.created_at)
-        ).order_by(
-            func.date(Tweet.created_at)
-        ).all()
+            Tweet.project_tag == project_tag,
+            Tweet.created_at >= past_7_days,
+            Tweet.sentiment_score != None
+        ).group_by(func.date(Tweet.created_at)).all()
 
-        if not results:
-            raise HTTPException(status_code=404, detail="No historical data found for this project in the last 7 days.")
+        if not daily_data:
+            raise HTTPException(status_code=404, detail="No historical data found for this project.")
 
-        # Format the results for the response
-        history_data = [{"date": res.date.isoformat(), "score": round(res.score, 2)} for res in results]
+        history = [
+            {
+                "date": str(row.date),
+                "average_sentiment": round(row.avg_sentiment, 2),
+                "mentions": row.mention_count
+            }
+            for row in daily_data
+        ]
 
-        return history_data
+        return {
+            "project_tag": project_tag,
+            "history": history
+        }
 
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail="Internal Server Error: " + str(e))
+        logging.error(f"Error in get_project_history: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 # --- Analysis Logic ---
@@ -163,11 +174,14 @@ def get_project_history(project_tag: str, db: Session = Depends(get_db)):
 def download_image(url: str) -> Optional[Image.Image]:
     """Downloads an image from a URL and returns a PIL Image object."""
     try:
-        response = requests.get(url)
+        response = requests.get(url, timeout=10)
         response.raise_for_status()
         return Image.open(BytesIO(response.content))
     except requests.exceptions.RequestException as e:
         logging.error(f"Error downloading image from {url}: {e}")
+        return None
+    except Exception as e:
+        logging.error(f"Error opening image: {e}")
         return None
 
 def extract_text_from_image(image: Image.Image) -> str:
@@ -199,12 +213,23 @@ def parse_pnl_data(text: str) -> dict:
     # --- PNL Percentage Extraction ---
     # Look for patterns like "+123.45%", "-50.2%", "PNL: 30%", etc.
     pnl_match = re.search(r'(pnl|profit|loss)\s*:?\s*([\+\-]?\s*\d+(\.\d+)?)\s*%', text)
-    if not pnl_match:
-        pnl_match = re.search(r'([\+\-]\s*\d+(\.\d+)?)\s*%', text)
     if pnl_match:
-        # Extract the numeric part, removing whitespace and the '+' sign
-        pnl_value = pnl_match.group(1).replace(' ', '').replace('+', '')
-        data['pnl_percentage'] = float(pnl_value)
+        try:
+            # Extract group 2 (the numeric part after the label)
+            pnl_value = pnl_match.group(2).replace(' ', '').replace('+', '')
+            data['pnl_percentage'] = float(pnl_value)
+        except (ValueError, AttributeError) as e:
+            logging.warning(f"Failed to parse PNL percentage from first match: {e}")
+    
+    if data['pnl_percentage'] is None:
+        # Fallback: Look for standalone percentage
+        pnl_match = re.search(r'([\+\-]\s*\d+(\.\d+)?)\s*%', text)
+        if pnl_match:
+            try:
+                pnl_value = pnl_match.group(1).replace(' ', '').replace('+', '')
+                data['pnl_percentage'] = float(pnl_value)
+            except (ValueError, AttributeError) as e:
+                logging.warning(f"Failed to parse PNL percentage from fallback match: {e}")
 
     # --- Token Symbol Extraction ---
     # Look for common crypto patterns, like a 3-5 letter uppercase word, often preceded by '$'
@@ -219,11 +244,17 @@ def parse_pnl_data(text: str) -> dict:
     # Look for "entry price: $123.45" or "entry: 0.123"
     entry_match = re.search(r'entry\s*(price)?\s*:?\s*\$?(\d+(\.\d+)?)', text)
     if entry_match:
-        data['entry_price'] = float(entry_match.group(2))
+        try:
+            data['entry_price'] = float(entry_match.group(2))
+        except (ValueError, AttributeError) as e:
+            logging.warning(f"Failed to parse entry price: {e}")
 
     exit_match = re.search(r'exit\s*(price)?\s*:?\s*\$?(\d+(\.\d+)?)', text)
     if exit_match:
-        data['exit_price'] = float(exit_match.group(2))
+        try:
+            data['exit_price'] = float(exit_match.group(2))
+        except (ValueError, AttributeError) as e:
+            logging.warning(f"Failed to parse exit price: {e}")
 
     return data
 
@@ -237,22 +268,24 @@ def analyze_pnl_cards():
 
     try:
         # Find tweets with a media_url that don't have a corresponding PnlCard entry yet.
-        tweets_to_process: List[Tweet] = db.query(Tweet).filter(
+        tweets_to_analyze: List[Tweet] = db.query(Tweet).filter(
             Tweet.media_url != None,
             Tweet.pnl_card == None
         ).all()
 
-        if not tweets_to_process:
+        if not tweets_to_analyze:
             logging.info("✅ No new PNL cards to analyze.")
             return
 
-        logging.info(f"Found {len(tweets_to_process)} potential PNL cards to analyze...")
+        logging.info(f"Found {len(tweets_to_analyze)} potential PNL cards to analyze...")
 
-        for tweet in tweets_to_process:
+        for tweet in tweets_to_analyze:
             logging.info(f"Processing tweet {tweet.id} with media URL: {tweet.media_url}")
 
-            media_url = cast(str, tweet.media_url)
-            image = download_image(media_url)
+            # No need to cast, already filtered by media_url != None
+            image = download_image(tweet.media_url.scalar()) if tweet.media_url is not None else None
+            media_url_value = tweet.media_url if isinstance(tweet.media_url, str) else tweet.media_url.scalar()
+            image = download_image(media_url_value) if media_url_value is not None else None
             if not image:
                 # Create a failed PnlCard entry
                 pnl_card = PnlCard(tweet_id=tweet.id, analysis_status='download_failed')
@@ -302,148 +335,93 @@ def analyze_and_update_trends():
     logging.info("--- 📈 Starting Trend Analysis ---")
 
     try:
-        # Define the time windows for analysis (e.g., last 4 hours vs. previous 4 hours)
         now = datetime.utcnow()
-        current_window_start = now - timedelta(hours=4)
-        previous_window_start = now - timedelta(hours=8)
-        previous_window_end = current_window_start
+        past_24h = now - timedelta(hours=24)
+        past_48h = now - timedelta(hours=48)
 
-        # Get all projects that are being tracked
-        tracked_projects = db.query(TrackRequest.project_name).all()
-        project_names = [p.project_name for p in tracked_projects]
-
-        if not project_names:
-            logging.warning("No projects are being tracked. Skipping trend analysis.")
-            return
-
-        logging.info(f"Analyzing trends for {len(project_names)} projects...")
-
+        # Query for current and previous mention counts
+        projects = db.query(TrackRequest).all()
         trending_results = []
 
-        for name in project_names:
-            # Count mentions in the current window
-            current_mentions = db.query(func.count(Tweet.id)).filter(
-                and_(
-                    Tweet.project_tag == name,
-                    Tweet.created_at >= current_window_start
-                )
-            ).scalar() or 0
+        for project in projects:
+            current_count = db.query(Tweet).filter(
+                Tweet.project_tag == project.project_name,
+                Tweet.created_at >= past_24h
+            ).count()
 
-            # Count mentions in the previous window
-            previous_mentions = db.query(func.count(Tweet.id)).filter(
-                and_(
-                    Tweet.project_tag == name,
-                    Tweet.created_at.between(previous_window_start, previous_window_end)
-                )
-            ).scalar() or 0
+            previous_count = db.query(Tweet).filter(
+                Tweet.project_tag == project.project_name,
+                Tweet.created_at >= past_48h,
+                Tweet.created_at < past_24h
+            ).count()
 
-            # Calculate the trend score
-            score = calculate_trend_score(current_mentions, previous_mentions)
+            trend_score = calculate_trend_score(current_count, previous_count)
 
-            # We only care about projects that are currently being mentioned
-            if current_mentions > 0:
-                trending_results.append({
-                    "project_name": name,
-                    "mention_count": current_mentions,
-                    "trend_score": score
-                })
+            trending_results.append({
+                "project_name": project.project_name,
+                "mention_count": current_count,
+                "trend_score": trend_score
+            })
 
-        if not trending_results:
-            logging.info("No significant trends detected in the last window.")
-            return
-
-        # Sort by trend score in descending order
+        # Sort by trend score
         trending_results.sort(key=lambda x: x['trend_score'], reverse=True)
 
-        # Clear the old trending projects data
+        # Clear old trending data
         db.query(TrendingProject).delete()
 
         # Save the new top trending projects to the database
         logging.info("Saving new trending projects to the database...")
-        for result in trending_results[:10]: # Save top 10
-            new_trend = TrendingProject(**result)
+        for result in trending_results[:10]:
+            new_trend = TrendingProject(
+                **result,
+                created_at=now
+            )
             db.add(new_trend)
 
         db.commit()
-        logging.info("✅ Trend analysis complete. Database has been updated.")
+        logging.info("✅ Trend analysis complete.")
 
     except Exception as e:
-        logging.error(f"❌ An error occurred during the trend analysis process: {e}")
+        logging.error(f"❌ An error occurred during trend analysis: {e}")
         db.rollback()
     finally:
         logging.info("Closing database session.")
         db.close()
 
 
-# from analyzer import analyze_and_update_sentiment
-
 # --- Background Task ---
 
 @app.post("/api/run-analysis")
 def run_analysis(background_tasks: BackgroundTasks):
-    """
-    Triggers a background task to run the sentiment, PNL, and trending analysis.
-    """
-    # background_tasks.add_task(analyze_and_update_sentiment)
+    """Triggers background analysis tasks."""
     background_tasks.add_task(analyze_pnl_cards)
     background_tasks.add_task(analyze_and_update_trends)
-    return {"message": "Analysis tasks have been started in the background."}
+    return {"message": "Analysis tasks started in the background"}
 
 
 # --- API Endpoints ---
 
 @app.get("/api/pnl/{project_name}")
 def get_pnl_data(project_name: str, db: Session = Depends(get_db)):
-    """
-    Retrieves all analyzed PNL card data for a specific project.
-    """
-    try:
-        # Query the database for PnlCard entries related to the project
-        pnl_cards = db.query(PnlCard).join(Tweet).filter(
-            Tweet.project_tag == project_name,
-            PnlCard.analysis_status == 'success'
-        ).all()
-
-        if not pnl_cards:
-            raise HTTPException(status_code=404, detail="No PNL card data found for this project.")
-
-        # Prepare the list of PNL cards for the JSON response
-        pnl_data = [{
-            "tweet_id": card.tweet_id,
-            "entry_price": card.entry_price,
-            "exit_price": card.exit_price,
-            "pnl_percentage": card.pnl_percentage,
-            "token_symbol": card.token_symbol,
-            "media_url": card.tweet.media_url,
-            "tweet_text": card.tweet.text
-        } for card in pnl_cards]
-
-        return {
-            "project_name": project_name,
-            "pnl_cards": pnl_data
-        }
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail="Internal Server Error: " + str(e))
+    """Retrieves PNL card data for a specific project."""
+    pnl_cards = db.query(PnlCard).join(Tweet).filter(
+        Tweet.project_tag == project_name,
+        PnlCard.analysis_status == 'success'
+    ).all()
+    
+    return {"project_name": project_name, "pnl_cards": pnl_cards}
 
 
 @app.get("/api/trending")
 def get_trending_projects(db: Session = Depends(get_db)):
-    """
-    Retrieves the list of currently trending projects.
-    """
-    try:
-        trending_projects = db.query(TrendingProject).order_by(TrendingProject.trend_score.desc()).all()
-
-        if not trending_projects:
-            raise HTTPException(status_code=404, detail="No trending projects found at the moment.")
-
-        return trending_projects
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail="Internal Server Error: " + str(e))
+    """Retrieves the current trending projects."""
+    trending = db.query(TrendingProject).order_by(
+        TrendingProject.trend_score.desc()
+    ).limit(10).all()
+    
+    return {"trending_projects": trending}
 
 
 @app.get("/")
 def read_root():
-    return {"status": "DugTrio API is running"}
+    return {"message": "Welcome to DugTrio API"}

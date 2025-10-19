@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean, func, ForeignKey
+from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean, func, ForeignKey, Index
 from sqlalchemy.orm import relationship
 from database import Base
 
@@ -36,6 +36,12 @@ class Tweet(Base):
 
     # Relationship to the PnlCard
     pnl_card = relationship("PnlCard", back_populates="tweet", uselist=False)
+
+    # Add compound indexes for better query performance
+    __table_args__ = (
+        Index('ix_project_sentiment', 'project_tag', 'sentiment_label'),
+        Index('ix_project_created', 'project_tag', 'created_at'),
+    )
 
     def __repr__(self):
         return f"<Tweet(id={self.id}, project='{self.project_tag}', sentiment='{self.sentiment_label}')>"
