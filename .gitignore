@@ -2,20 +2,23 @@
 __pycache__/
 *.py[cod]
 *$py.class
-*.so
-.Python
-*.pyc
-*.pyo
 
-# Environment
+# Virtual envs
 .env
-.venv
+.venv/
 env/
 venv/
 
 # VS Code
 .vscode/
 
-# Database
+# Databases
 *.db
 *.sqlite3
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
