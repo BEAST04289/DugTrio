@@ -1,4 +1,5 @@
 import os
+import asyncio
 import httpx
 from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
@@ -427,8 +428,15 @@ async def tweets_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         if status_message:
             await safe_delete_message(status_message)
 
-# --- App bootstrap ---
+
 def main() -> None:
+    # Python 3.14 fix: explicitly create event loop
+    try:
+        loop = asyncio.get_event_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+    
     application = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
     print("✅ DugTrio Bot is online...")
 
