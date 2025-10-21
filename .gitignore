@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.pyc
+*.pyo
+
+# Environment
+.env
+.venv
+env/
+venv/
+
+# VS Code
+.vscode/
+
+# Database
+*.db
+*.sqlite3
