@@ -1,7 +1,5 @@
 import os
 import httpx
-import asyncio
-from datetime import datetime
 from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.constants import ParseMode
@@ -9,18 +7,16 @@ from telegram.ext import (
     Application, CommandHandler, ContextTypes, CallbackQueryHandler
 )
 from typing import Optional
-# ...existing code...
 
 # --- Load Environment Variables & Constants ---
 load_dotenv()
 
 token = os.getenv("TELEGRAM_BOT_TOKEN")
 if not token:
-    raise ValueError("FATAL ERROR: TELEGRAM_BOT_TOKEN not found in .env file. Please check your configuration.")
+    raise ValueError("TELEGRAM_BOT_TOKEN not found in .env")
 TELEGRAM_BOT_TOKEN: str = token
 
-API_BASE_URL: str = os.getenv("API_BASE_URL", "http://127.0.0.1:8000")
-# ...existing code...
+API_BASE_URL: str = os.getenv("API_BASE_URL", "https://dugtrio-backend.onrender.com")
 if not TELEGRAM_BOT_TOKEN:
     raise ValueError("FATAL ERROR: TELEGRAM_BOT_TOKEN not found in .env file. Please check your configuration.")
 
