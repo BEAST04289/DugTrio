@@ -1,3 +1,4 @@
+# ...existing code...
 import os
 import logging
 import asyncio
@@ -22,33 +23,45 @@ def health():
     return "OK", 200
 
 
+# ...existing code...
 @app.route("/<token>", methods=["POST"])
 def webhook(token: str):
     if token != TELEGRAM_BOT_TOKEN:
         logger.warning("Received webhook with invalid token")
         abort(403)
 
-    try:
-        payload = request.get_json(force=True)
-    except Exception:
-        logger.exception("Invalid JSON payload")
+    payload = request.get_json(silent=True)
+    if not payload:
+        logger.warning("Empty/invalid JSON payload")
         abort(400)
 
     try:
         update = Update.de_json(payload, application.bot)
-    except Exception:
-        logger.exception("Failed to build Update object")
+    except Exception as exc:
+        logger.exception("Failed to build Update object: %s", exc)
         abort(400)
 
-    # Process update synchronously by running the application's coroutine
+    # Enqueue update (best-effort; do not let queue failures kill the web process)
     try:
-        asyncio.run(application.process_update(update))
+        application.update_queue.put_nowait(update)
     except Exception:
-        logger.exception("Failed to process update")
-        abort(500)
+        try:
+            loop = None
+            try:
+                loop = asyncio.get_event_loop()
+            except RuntimeError:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+            loop.run_until_complete(application.update_queue.put(update))
+        except Exception:
+            logger.exception("Failed to enqueue update; returning 200 to avoid retry storm")
+            # Return 200 so Telegram will not immediately retry; investigate and reprocess missed updates later
+            return "OK", 200
 
     return "OK", 200
+# ...existing code...
 
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=PORT)
+# ...existing code...
