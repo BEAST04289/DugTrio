@@ -1,19 +1,33 @@
-
 import os
 import logging
 import asyncio
+import threading
 import importlib
 from flask import Flask, request, abort, jsonify
+from telegram import Update
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+if not TOKEN:
+    raise RuntimeError("TELEGRAM_BOT_TOKEN not set")
 
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-if not TELEGRAM_BOT_TOKEN:
-    raise RuntimeError("TELEGRAM_BOT_TOKEN not set in environment")
+application = ApplicationBuilder().token(TOKEN).build()
 
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Hello from DugTrio!")
+
+application.add_handler(CommandHandler("start", start))
+
+# Start PTB in a background thread so UpdateQueue is consumed
+async def _runner():
+    await application.initialize()
+    await application.start()
+    # keep running; do not call idle() to avoid blocking
+
+threading.Thread(target=lambda: asyncio.run(_runner()), daemon=True).start()
 PORT = int(os.getenv("PORT", "8443"))
 
 app = Flask(__name__)
@@ -22,11 +36,11 @@ app = Flask(__name__)
 @app.route("/", methods=["GET"])
 def health():
     return "OK", 200
-
-
 @app.route("/<token>", methods=["POST"])
 def webhook(token: str):
-    if token != TELEGRAM_BOT_TOKEN:
+    if token != TOKEN:
+        logger.warning("Received webhook with invalid token")
+        abort(403)
         logger.warning("Received webhook with invalid token")
         abort(403)
 
