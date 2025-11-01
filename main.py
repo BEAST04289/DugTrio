@@ -414,11 +414,11 @@ def get_pnl_data(project_name: str, db: Session = Depends(get_db)):
 
 @app.get("/api/trending")
 def get_trending_projects(db: Session = Depends(get_db)):
-    """Retrieves the current trending projects."""
     trending = db.query(TrendingProject).order_by(
         TrendingProject.trend_score.desc()
     ).limit(5).all()
-    
+    return [t.to_dict() for t in trending]
+
     return {"trending_projects": trending}
 
 
