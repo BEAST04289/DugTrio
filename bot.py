@@ -1,3 +1,4 @@
+# ...existing code...
 import os
 import asyncio
 import httpx
@@ -9,7 +10,6 @@ from telegram.ext import (
 )
 from typing import Optional
 
-# --- Load Environment Variables & Constants ---
 load_dotenv()
 
 token = os.getenv("TELEGRAM_BOT_TOKEN")
@@ -18,8 +18,6 @@ if not token:
 TELEGRAM_BOT_TOKEN: str = token
 
 API_BASE_URL: str = os.getenv("API_BASE_URL", "https://dugtrio-backend.onrender.com")
-if not TELEGRAM_BOT_TOKEN:
-    raise ValueError("FATAL ERROR: TELEGRAM_BOT_TOKEN not found in .env file. Please check your configuration.")
 
 # --- UI Keyboards ---
 def get_main_menu_keyboard() -> InlineKeyboardMarkup:
@@ -51,6 +49,7 @@ def get_sentiment_keyboard(project_name: Optional[str] = None) -> InlineKeyboard
     ]
     return InlineKeyboardMarkup(keyboard)
 
+
 # --- Helpers ---
 async def send_new_message(
     update: Update,
@@ -75,6 +74,7 @@ async def safe_delete_message(message):
         await message.delete()
     except Exception:
         pass
+
 
 # --- Handlers ---
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -399,7 +399,6 @@ async def tweets_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         )
 
     try:
-        # Request up to 3 tweets from backend; fallback to slicing client-side
         async with httpx.AsyncClient() as client:
             resp = await client.get(f"{API_BASE_URL}/tweets/{project_tag}", params={"limit": 3}, timeout=30.0)
         resp.raise_for_status()
@@ -408,7 +407,6 @@ async def tweets_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         if not tweets:
             reply = f"📭 No tweets found for <b>{project_tag.upper()}</b>."
         else:
-            # Ensure we only show 3 tweets even if backend ignored limit
             parts = [f"<b>🐦 Recent Tweets for {project_tag.upper()}</b>\n"]
             for i, t in enumerate((tweets or [])[:3], 1):
                 author = t.get("author_username", "Unknown")
@@ -431,43 +429,37 @@ async def tweets_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             await safe_delete_message(status_message)
 
 
-def main() -> None:
-    """Sets up and starts the bot using Webhooks for Heroku deployment."""
-    
-    # 1. Critical Token Check (Already in your code, but here for context)
-    if not TELEGRAM_BOT_TOKEN:
-        raise ValueError("FATAL ERROR: TELEGRAM_BOT_TOKEN not found.")
-
-    # 2. Build Application
+# --- Application factory & export ---
+def create_application() -> Application:
     application = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
-    
-    # --- Register Handlers (All your existing Command/Callback logic goes here) ---
+
+    # Commands
     application.add_handler(CommandHandler("start", start_command))
+    application.add_handler(CommandHandler("help", help_command))
     application.add_handler(CommandHandler("sentiment", sentiment_command))
-    # ... ALL 10 of your CommandHandler and CallbackQueryHandler registrations must be here ...
-    application.add_handler(CallbackQueryHandler(sentiment_menu, pattern=r'^menu_sentiment$'))
-    # ... etc. ...
-    
-    
-    # 3. Deployment Logic: Set Webhook and Start Server
-    # Heroku provides the PORT dynamically.
-    PORT = int(os.environ.get('PORT', '8443')) 
-    WEBHOOK_URL = os.environ.get('WEBHOOK_URL', None) # We'll set this later via Heroku
+    application.add_handler(CommandHandler("track", track_command))
+    application.add_handler(CommandHandler("tweets", tweets_command))
+    application.add_handler(CommandHandler("stats", stats_command))
 
-    if WEBHOOK_URL:
-        # Set the Webhook URL on Telegram's side
-        application.run_webhook(
-            listen="0.0.0.0",
-            port=PORT,
-            url_path=TELEGRAM_BOT_TOKEN,  # Use token as a secure path
-            webhook_url=WEBHOOK_URL + TELEGRAM_BOT_TOKEN,
-        )
-        print(f"✅ DugTrio Bot running via Webhook on port {PORT}")
-    else:
-        # Fallback for local testing (polling)
-        print("⚠️ Running in local polling mode (for testing only).")
-        application.run_polling(poll_interval=3.0)
+    # Menus
+    application.add_handler(CallbackQueryHandler(start_command, pattern=r"^menu_start$"))
+    application.add_handler(CallbackQueryHandler(sentiment_menu, pattern=r"^menu_sentiment$"))
+    application.add_handler(CallbackQueryHandler(analyze_pnl_prompt, pattern=r"^menu_analyze_pnl$"))
+    application.add_handler(CallbackQueryHandler(track_project_prompt, pattern=r"^menu_track_project$"))
+    application.add_handler(CallbackQueryHandler(top_projects_command, pattern=r"^menu_topprojects$"))
+    application.add_handler(CallbackQueryHandler(stats_command, pattern=r"^menu_stats$"))
+
+    # Sentiment quick buttons
+    application.add_handler(CallbackQueryHandler(sentiment_command, pattern=r"^sentiment_"))
+
+    return application
 
 
-if __name__ == '__main__':
-    main()
+# Export application instance for webhook listener
+application = create_application()
+
+
+if __name__ == "__main__":
+    # local dev polling
+    print("✅ DugTrio Bot is starting (polling)...")
+    application.run_polling()
