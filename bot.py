@@ -1,3 +1,4 @@
+
 import os
 import asyncio
 import httpx
@@ -399,21 +400,23 @@ async def tweets_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         )
 
     try:
+        # Request up to 3 tweets from backend; fallback to slicing client-side
         async with httpx.AsyncClient() as client:
-            resp = await client.get(f"{API_BASE_URL}/tweets/{project_tag}", timeout=30.0)
+            resp = await client.get(f"{API_BASE_URL}/tweets/{project_tag}", params={"limit": 3}, timeout=30.0)
         resp.raise_for_status()
         tweets = resp.json()
 
         if not tweets:
             reply = f"📭 No tweets found for <b>{project_tag.upper()}</b>."
         else:
+            # Ensure we only show 3 tweets even if backend ignored limit
             parts = [f"<b>🐦 Recent Tweets for {project_tag.upper()}</b>\n"]
-            for i, t in enumerate(tweets[:5], 1):
+            for i, t in enumerate((tweets or [])[:3], 1):
                 author = t.get("author_username", "Unknown")
-                text = (t.get("tweet_text", "") or "")[:100]
-                parts.append(f"{i}. <b>@{author}</b>\n{text}...\n")
-            if len(tweets) > 5:
-                parts.append(f"<i>...and {len(tweets) - 5} more</i>")
+                text = (t.get("tweet_text", "") or "")[:200]
+                parts.append(f"{i}. <b>@{author}</b>\n{text}\n")
+            if len(tweets) > 3:
+                parts.append(f"<i>...and {len(tweets) - 3} more</i>")
             reply = "\n".join(parts)
 
         await send_new_message(update, context, reply, reply_markup=get_main_menu_keyboard())

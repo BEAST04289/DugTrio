@@ -417,7 +417,7 @@ def get_trending_projects(db: Session = Depends(get_db)):
     """Retrieves the current trending projects."""
     trending = db.query(TrendingProject).order_by(
         TrendingProject.trend_score.desc()
-    ).limit(10).all()
+    ).limit(5).all()
     
     return {"trending_projects": trending}
 
