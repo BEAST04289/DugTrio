@@ -1,14 +1,39 @@
-# DugTrio
+# ⛏️ DugTrio: The AI Alpha Hunter for Solana
 
-DugTrio is a backend + Telegram bot ecosystem for discovering and surfacing social sentiment and PNL screenshots related to Solana ecosystem projects.
+## 🚀 Verifiable Alpha Intelligence via Telegram
+
+**DugTrio is a full-stack, AI-powered intelligence engine built to solve the fundamental problem of Fake Alpha in high-speed crypto markets.**
+
+We eliminate guesswork by fusing advanced **AI Sentiment Analysis** with verifiable **On-Chain Metrics**, delivering actionable signals directly into the trader's Telegram workflow.
+
+### 💡 The DugTrio Edge
+
+| Feature | The Strategic Advantage |
+| :--- | :--- |
+| **Dual Intelligence Stream** | Fuses **Social Hype (X.com)** with **Liquidity/Volume (On-Chain)** to eliminate "Fool's Gold." |
+| **Zero Latency Delivery** | **Telegram-Native** deployment provides instant access to critical signals. |
+| **Monetization Ready** | Supports premium tools: **PNL OCR** and **Smart Wallet Tracking** (high-value utility). |
+| **Proven Execution** | Built and deployed on **Zero-Budget, Free-Tier Resources**, demonstrating rapid development capability. |
+
+---
+
+## 📹 Live Demo Preview
+
+Experience the power of the DugTrio pipeline: from raw tweet ingestion to AI analysis to a final, actionable signal in the Telegram bot.
+
+
+
+**Try the Bot Live:** **[t.me/DugTrio\_ai\_bot](https://t.me/DugTrio_ai_bot)**
+
+---
 
 ## Overview
 - Backend: FastAPI server exposing endpoints for sentiment, PNL cards, trending projects, history, and administrative tasks.
 - Ingest: A scheduled fetcher that queries X (Twitter) for project mentions and saves tweets (with media URLs) to the DB.
 - Analysis:
-  - NLP sentiment analysis using Hugging Face Transformers.
-  - PNL image OCR and parsing using Tesseract OCR + pytesseract.
-  - Trend scoring based on mention volume changes.
+  - NLP sentiment analysis using Hugging Face Transformers.
+  - PNL image OCR and parsing using Tesseract OCR + pytesseract.
+  - Trend scoring based on mention volume changes.
 - UI: Telegram bot that presents sentiment, top projects, PNL cards, stats, and tracking controls.
 
 ## Tech Stack
@@ -23,24 +48,9 @@ DugTrio is a backend + Telegram bot ecosystem for discovering and surfacing soci
 - ML/NLP: transformers, torch (`analyzer.py`)
 - HTTP client: httpx (bot calls backend)
 - Build script: `build.sh` — installs system Tesseract and pip deps
+- **Deployment:** Render (API Web Service), Heroku/Railway (Bot Worker)
 
-## Tech & Tools — what we used and why
-- Python — Primary language for backend, bot, ingestion, analysis, and utility scripts.
-- FastAPI — Serves the REST API endpoints used by the bot and frontend.
-- Uvicorn — ASGI server used to run the FastAPI app in development/production.
-- SQLAlchemy — ORM for defining models and interacting with the PostgreSQL database.
-- PostgreSQL (Neon) — Production database for storing tweets, sentiment results, PNL cards, and tracking requests.
-- Tweepy — Fetches tweets and media from X (Twitter) for ingestion into the DB.
-- transformers (Hugging Face) + torch — Runs the sentiment models to label tweets and produce confidence scores.
-- pytesseract + Tesseract OCR — Extracts text (PNL values) from screenshot images attached to tweets.
-- python-telegram-bot — Telegram UI layer: bot handlers, menus, and user commands.
-- httpx — HTTP client used by the bot to call backend API endpoints.
-- python-dotenv — Loads local `.env` secrets during development.
-- Docker / build scripts — Optional environment reproducibility and system deps installer (Tesseract helper).
-- Requirements.txt / pip — Python dependency management.
-
-Use-case summary:
-- Ingest (tweepy) → store (SQLAlchemy/Postgres) → analyze (transformers, OCR) → expose (FastAPI) → present (python-telegram-bot).
+---
 
 ## Repository Layout
 - `main.py` — FastAPI app and endpoints
@@ -54,40 +64,41 @@ Use-case summary:
 - `reset_DataBase.py` — interactive reset script (destructive)
 - `build.sh` — installs Tesseract and Python dependencies
 - `requirements.txt` — Python dependencies
-- `.env` — environment variables (API keys, DB url, etc.) — DO NOT COMMIT TO PUBLIC REPOS
+- `.env` — environment variables (API keys, DB url, etc.) — **DO NOT COMMIT TO PUBLIC REPOS**
 
-## Getting started (developer)
+## Getting Started (Developer)
 1. Copy `.env` locally (never commit).
 2. Install system deps (Linux example):
-   ```sh
-   sudo ./build.sh
-   ```
+   ```sh
+   sudo ./build.sh
+   ```
 3. Create tables:
-   ```sh
-   python create_tables.py
-   ```
+   ```sh
+   python create_tables.py
+   ```
 4. Run backend (development):
-   ```sh
-   uvicorn main:app --reload
-   ```
+   ```sh
+   uvicorn main:app --reload
+   ```
 5. Run bot (in another terminal):
-   ```sh
-   python bot.py
-   ```
+   ```sh
+   python bot.py
+   ```
 6. Run ingestion & analysis tasks (manual/testing):
-   - Fetch fresh tweets:
-     ```sh
-     python tracker.py
-     ```
-   - Analyze sentiment:
-     ```sh
-     python analyzer.py
-     ```
-   - Analyze PNL images:
-     ```sh
-     python pnl_analyzer.py
-     ```
+   - Fetch fresh tweets:
+     ```sh
+     python tracker.py
+     ```
+   - Analyze sentiment:
+     ```sh
+     python analyzer.py
+     ```
+   - Analyze PNL images:
+     ```sh
+     python pnl_analyzer.py
+     ```
 
+---
 ## API Endpoints (example)
 - GET /api/project/{project_name} — project sentiment summary (24h)
 - POST /api/request — request to track a new project
@@ -98,16 +109,6 @@ Use-case summary:
 - Root `/` — basic health / welcome
 
 ## Notes & Best Practices
-- Secrets: Keep `.env` out of the repo. Use environment variables in production.
-- Tesseract: Ensure `tesseract` binary is available on the host for OCR to work.
-- Model weights: transformers models may download large files; prefer an environment with GPU or use smaller models for development.
-- Rate limits: X (Twitter) API rate limits apply — consider backoff and caching.
-- Database: Use connection pooling in production and secure credentials.
-
-## Presenting the project
-- Demo flow: show the API endpoints in a browser or curl, then run the bot locally and demo commands (/start, /stats, /track, /sentiment, /tweets) and the inline menus.
-- Highlight: ingestion → analysis → presentation pipeline and the modular separation (tracker, analyzer, pnl_analyzer, API, bot).
-
-## Contact
-- Repo by DugTrio team
-- For demos, run the bot locally and point it at `http://localhost:8000` or a public deploy.
+- **Secrets:** Keep `.env` out of the repo. Use environment variables in production.
+- **Tesseract:** Ensure `tesseract` binary is available on the host for OCR to work.
+- **Rate limits:** X (Twitter) API rate limits apply — consider backoff and caching.
