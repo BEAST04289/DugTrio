@@ -228,7 +228,7 @@ def main() -> None:
     
     # This handler catches all sentiment buttons like "sentiment_solana"
     application.add_handler(CallbackQueryHandler(sentiment_command, pattern="^sentiment_"))
-
+    #change
     # Start polling
     print("✅ DugTrio Bot is online and polling for messages...")
     application.run_polling()
