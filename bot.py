@@ -212,8 +212,8 @@ async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 # (This is a simplified example focusing on the main structure)
 
 
-def main() -> None:
-    """Sets up and runs the bot."""
+async def main() -> None:
+    """Sets up and runs the bot using an explicit asyncio event loop."""
     application = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
 
     # Command Handlers
@@ -228,11 +228,22 @@ def main() -> None:
     
     # This handler catches all sentiment buttons like "sentiment_solana"
     application.add_handler(CallbackQueryHandler(sentiment_command, pattern="^sentiment_"))
-    #change
-    # Start polling
+
+    # Run the bot until the user presses Ctrl-C
     print("✅ DugTrio Bot is online and polling for messages...")
-    application.run_polling()
+    # The run_polling() method is a shortcut for the following calls
+    # which we do manually here to ensure the event loop is handled correctly.
+    await application.initialize()
+    await application.start()
+    await application.updater.start_polling()
+    
+    # Keep the script running
+    while True:
+        await asyncio.sleep(3600) # Sleep for an hour, then loop again
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("Bot stopped manually.")
