@@ -72,7 +72,6 @@ else:
 
 # --- Endpoints ---
 
-# CHANGE THIS DECORATOR:
 @app.api_route("/", methods=["GET", "HEAD"])
 def read_root():
     return {"status": "online", "service": "DugTrio Backend"}
@@ -138,7 +137,18 @@ async def register_ip_on_chain(project_tag: str, report_data: dict) -> str:
     })
 
     signed_tx = w3.eth.account.sign_transaction(tx, private_key=PRIVATE_KEY)
-    tx_hash = w3.eth.send_raw_transaction(signed_tx.rawTransaction)
+    
+    # --- FIX: Handle different Web3.py versions ---
+    if hasattr(signed_tx, "rawTransaction"):
+        raw_tx = signed_tx.rawTransaction
+    elif hasattr(signed_tx, "raw_transaction"):
+        raw_tx = signed_tx.raw_transaction
+    else:
+        # Fallback for older versions or dict-like objects
+        raw_tx = signed_tx["rawTransaction"]
+    # ----------------------------------------------
+
+    tx_hash = w3.eth.send_raw_transaction(raw_tx)
     w3.eth.wait_for_transaction_receipt(tx_hash)
     
     return tx_hash.hex()
@@ -146,16 +156,17 @@ async def register_ip_on_chain(project_tag: str, report_data: dict) -> str:
 @app.post("/ip/register-sentiment/{project_tag}", tags=["Story Protocol"])
 async def register_sentiment_ip(project_tag: str, db: Session = Depends(get_db)):
     """Registers IP. Uses DB data if available, otherwise generates mock data."""
+    print(f"🔵 HIT: /ip/register-sentiment/{project_tag}")
     
     # 1. Try to get real data
     avg_score = db.query(func.avg(Tweet.sentiment_score)).filter(
         Tweet.project_tag == project_tag
     ).scalar()
     
-    # 2. If no data, generate realistic mock data (The Fix)
+    # 2. If no data, generate realistic mock data
     if avg_score is None:
         logger.info(f"No data for {project_tag}, generating mock report for IP registration.")
-        random.seed(project_tag) # Deterministic random
+        random.seed(project_tag) 
         avg_score = random.uniform(0.4, 0.9)
     
     sentiment_label = "Neutral"
