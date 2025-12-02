@@ -1,0 +1,16 @@
+[
+  {
+    "inputs": [
+      { "internalType": "uint256", "name": "policyId", "type": "uint256" },
+      { "internalType": "string", "name": "ipName", "type": "string" },
+      { "internalType": "bytes32", "name": "contentHash", "type": "bytes32" },
+      { "internalType": "string", "name": "externalURL", "type": "string" }
+    ],
+    "name": "register",
+    "outputs": [
+      { "internalType": "address", "name": "ipAssetId", "type": "address" }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  }
+]
