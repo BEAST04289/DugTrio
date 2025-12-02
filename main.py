@@ -72,7 +72,8 @@ else:
 
 # --- Endpoints ---
 
-@app.get("/")
+# CHANGE THIS DECORATOR:
+@app.api_route("/", methods=["GET", "HEAD"])
 def read_root():
     return {"status": "online", "service": "DugTrio Backend"}
 
