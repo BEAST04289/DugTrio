@@ -14,7 +14,10 @@ from telegram.ext import (
 # --- Configuration ---
 load_dotenv()
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-API_BASE_URL = os.getenv("API_BASE_URL", "http://127.0.0.1:8000")
+
+# ⚠️ CHANGE THIS to your actual Render URL ⚠️
+# Make sure there is NO trailing slash (e.g., no / at the end)
+API_BASE_URL = "https://dugtrio-backend.onrender.com" 
 
 # Logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
