@@ -1,114 +1,101 @@
-# ⛏️ DugTrio: The AI Alpha Hunter for Solana
+# 🤖 DugTrio: The Verifiable AI Intelligence Layer
 
-## 🚀 Verifiable Alpha Intelligence via Telegram
+> *"Ephemeral sentiment, permanently verifiable."*
 
-**DugTrio is a full-stack, AI-powered intelligence engine built to solve the fundamental problem of Fake Alpha in high-speed crypto markets.**
-
-We eliminate guesswork by fusing advanced **AI Sentiment Analysis** with verifiable **On-Chain Metrics**, delivering actionable signals directly into the trader's Telegram workflow.
-
-### 💡 The DugTrio Edge
-
-| Feature | The Strategic Advantage |
-| :--- | :--- |
-| **Dual Intelligence Stream** | Fuses **Social Hype (X.com)** with **Liquidity/Volume (On-Chain)** to eliminate "Fool's Gold." |
-| **Zero Latency Delivery** | **Telegram-Native** deployment provides instant access to critical signals. |
-| **Monetization Ready** | Supports premium tools: **PNL OCR** and **Smart Wallet Tracking** (high-value utility). |
-| **Proven Execution** | Built and deployed on **Zero-Budget, Free-Tier Resources**, demonstrating rapid development capability. |
+**DugTrio** is a Telegram-based AI agent that aggregates real-time crypto market social signals, analyzes them using Transformer models (RoBERTa), and anchors that intelligence onto the **Story Protocol** blockchain. It transforms fleeting market analysis into verifiable, ownable Intellectual Property (IP).
 
 ---
 
-## 📹 Live Demo Preview
+## 🚩 The Problem
 
-Experience the power of the DugTrio pipeline: from raw tweet ingestion to AI analysis to a final, actionable signal in the Telegram bot.
-
-
-
-**Try the Bot Live:** **[t.me/DugTrio\_ai\_bot](https://t.me/DugTrio_ai_bot)**
+1.  **Data Overload:** Crypto moves too fast for humans to read every tweet or news article.
+2.  **Lack of Accountability:** "Influencers" delete bearish tweets when the market pumps. There is no record of who predicted what.
+3.  **Ephemeral Insights:** Valuable analysis is lost in the feed within minutes.
 
 ---
 
-## Overview
-- Backend: FastAPI server exposing endpoints for sentiment, PNL cards, trending projects, history, and administrative tasks.
-- Ingest: A scheduled fetcher that queries X (Twitter) for project mentions and saves tweets (with media URLs) to the DB.
-- Analysis:
-  - NLP sentiment analysis using Hugging Face Transformers.
-  - PNL image OCR and parsing using Tesseract OCR + pytesseract.
-  - Trend scoring based on mention volume changes.
-- UI: Telegram bot that presents sentiment, top projects, PNL cards, stats, and tracking controls.
+## 🛠️ How It Works
 
-## Tech Stack
-- Languages: Python 3.10+
-- Web framework: FastAPI (`main.py`)
-- ASGI server: Uvicorn
-- Database ORM: SQLAlchemy (`models.py`, `database.py`)
-- DB: PostgreSQL (Neon) — configured via `DATABASE_URL` in `.env`
-- Twitter/X ingestion: tweepy (`tracker.py`)
-- Bot: python-telegram-bot (`bot.py`)
-- OCR: Tesseract + pytesseract (`pnl_analyzer.py`)
-- ML/NLP: transformers, torch (`analyzer.py`)
-- HTTP client: httpx (bot calls backend)
-- Build script: `build.sh` — installs system Tesseract and pip deps
-- **Deployment:** Render (API Web Service), Heroku/Railway (Bot Worker)
+### 1. The Eyes (Data Ingestion) 👁️
+DugTrio continuously monitors high-velocity keywords (e.g., `$SOL`, `$JUP`) on X (Twitter). It filters out spam to capture the raw "voice of the market."
+
+### 2. The Brain (AI Analysis) 🧠
+We use **RoBERTa** (`cardiffnlp/twitter-roberta-base-sentiment`), a transformer model fine-tuned on financial tweets, to understand context:
+*   **Input:** *"This dip is tasty."*
+*   **Output:** `Bullish (0.85)` *(Unlike simple tools which might see 'dip' as negative).*
+
+### 3. The Vault (Story Protocol Integration) 🔒
+**The Killer Feature:** When a user requests to "Mint IP," DugTrio:
+1.  Packages the analysis (Token, Score, Timestamp).
+2.  Hashes the data into a unique fingerprint.
+3.  Interacts with the **Story Protocol IP Asset Registry** (Sepolia Testnet).
+4.  **Result:** A permanent, on-chain record proving *this* specific AI generated *this* insight at *this* time.
 
 ---
 
-## Repository Layout
-- `main.py` — FastAPI app and endpoints
-- `bot.py` — Telegram bot and handlers
-- `tracker.py` — pulls tweets and stores into DB
-- `analyzer.py` — runs sentiment analysis and writes results
-- `pnl_analyzer.py` — downloads media, OCRs, parses PNL cards, saves `PnlCard` rows
-- `database.py` — engine, `SessionLocal`, `Base`, helpers
-- `models.py` — SQLAlchemy ORM models (`User`, `Tweet`, `PnlCard`, `TrackRequest`, `TrendingProject`, `TrackedWallet`)
-- `create_tables.py` — one-shot table init helper
-- `reset_DataBase.py` — interactive reset script (destructive)
-- `build.sh` — installs Tesseract and Python dependencies
-- `requirements.txt` — Python dependencies
-- `.env` — environment variables (API keys, DB url, etc.) — **DO NOT COMMIT TO PUBLIC REPOS**
+## 🏗️ Tech Stack
 
-## Getting Started (Developer)
-1. Copy `.env` locally (never commit).
-2. Install system deps (Linux example):
-   ```sh
-   sudo ./build.sh
-   ```
-3. Create tables:
-   ```sh
-   python create_tables.py
-   ```
-4. Run backend (development):
-   ```sh
-   uvicorn main:app --reload
-   ```
-5. Run bot (in another terminal):
-   ```sh
-   python bot.py
-   ```
-6. Run ingestion & analysis tasks (manual/testing):
-   - Fetch fresh tweets:
-     ```sh
-     python tracker.py
-     ```
-   - Analyze sentiment:
-     ```sh
-     python analyzer.py
-     ```
-   - Analyze PNL images:
-     ```sh
-     python pnl_analyzer.py
-     ```
+| Component | Technology | Purpose |
+| :--- | :--- | :--- |
+| **Interface** | `python-telegram-bot` | User-facing command center. |
+| **Backend** | `FastAPI` | Logic handling & blockchain orchestration. |
+| **AI Engine** | `HuggingFace Transformers` | RoBERTa model for sentiment scoring. |
+| **Blockchain** | `Web3.py` | Interaction with Story Protocol (Sepolia). |
+| **Database** | `SQLite` / `PostgreSQL` | Caching tweets & user sessions. |
+| **Cloud** | `Render` | CI/CD & 24/7 Hosting. |
 
 ---
-## API Endpoints (example)
-- GET /api/project/{project_name} — project sentiment summary (24h)
-- POST /api/request — request to track a new project
-- GET /api/history/{project_tag} — 7-day daily average sentiment
-- POST /api/run-analysis — trigger background analysis tasks
-- GET /api/pnl/{project_name} — list parsed PNL cards for a project
-- GET /api/trending — top trending projects
-- Root `/` — basic health / welcome
 
-## Notes & Best Practices
-- **Secrets:** Keep `.env` out of the repo. Use environment variables in production.
-- **Tesseract:** Ensure `tesseract` binary is available on the host for OCR to work.
-- **Rate limits:** X (Twitter) API rate limits apply — consider backoff and caching.
+## 🗺️ Roadmap (Winter Code & Beyond)
+
+### ✅ Phase 1: The Foundation (Completed)
+- [x] Telegram Bot Interface.
+- [x] Twitter/X Scraper (`tracker.py`).
+- [x] RoBERTa Sentiment Model Integration (`analyzer.py`).
+
+### ✅ Phase 2: Proof of Intelligence (Completed)
+- [x] Connection to Story Protocol (Sepolia Testnet).
+- [x] Pipeline to mint Sentiment Reports as IP Assets.
+- [x] Deployment on Render.
+
+### 🚀 Phase 3: The "World Class" Upgrade (Upcoming)
+- [ ] **Multi-Agent Council:** Three AI agents (Technical, Fundamental, Social) debate the token.
+- [ ] **Automated Trading:** Connect Phantom Wallet to auto-execute trades if Score > 0.85.
+- [ ] **Fake PNL Detector:** OCR feature to detect photoshopped profit screenshots.
+- [ ] **IP Marketplace:** Frontend for users to trade their high-accuracy sentiment reports.
+
+---
+
+## ⚡ Quick Start
+
+### Prerequisites
+*   Python 3.10+
+*   Telegram Bot Token
+*   Story Protocol Private Key (Sepolia)
+
+### Installation
+
+1.  **Clone the repo**
+    ```bash
+    git clone https://github.com/shaurya-upadhyay/DugTrio.git
+    cd DugTrio
+    ```
+
+2.  **Install Dependencies**
+    ```bash
+    pip install -r requirements.txt
+    ```
+
+3.  **Configure Environment**
+    Create a `.env` file:
+    ```env
+    TELEGRAM_BOT_TOKEN=your_token_here
+    PRIVATE_KEY=your_wallet_private_key
+    RPC_URL=https://ethereum-sepolia-rpc.publicnode.com
+    API_BASE_URL=http://127.0.0.1:8000
+    ```
+# Terminal 1: Backend
+uvicorn main:app --reload
+
+# Terminal 2: Bot
+python bot.py
