@@ -21,6 +21,8 @@ This roadmap outlines the journey from basic sentiment analysis to a "World Clas
 
 - [x] **Blockchain Integration:** Connected the backend to a testnet environment.
 - [x] **IP Minting Pipeline:** Created the logic to package AI sentiment reports (Timestamp + Score + Metadata) and register them as **IP Assets** on-chain.
+- [x] **Real-Data Transition:** Removed all mock data generators. The system now runs 100% on live scraped data.
+- [x] **Modular Refactoring:** Separated Blockchain logic (`story_service.py`) from the core API for better maintainability.
 - [x] **Cloud Architecture:** Deployed the Backend API and Bot Worker for 24/7 uptime.
 - [x] **Smart Fallback System:** Implemented "Smart Mocking" to ensure the demo experience remains smooth even if external APIs rate-limit.
 

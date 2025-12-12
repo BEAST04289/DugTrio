@@ -2,7 +2,6 @@ import os
 import asyncio
 import httpx
 import logging
-import random
 from datetime import datetime
 from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
@@ -17,7 +16,7 @@ TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
 # ⚠️ CHANGE THIS to your actual Render URL ⚠️
 # Make sure there is NO trailing slash (e.g., no / at the end)
-API_BASE_URL = "https://dugtrio-backend.onrender.com" 
+API_BASE_URL = "http://127.0.0.1:8000" 
 
 # Logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
@@ -92,29 +91,28 @@ async def fetch_sentiment(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 if isinstance(data, list):
                     proj_data = next((item for item in data if item.get("project_tag", "").lower() == project.lower()), None)
     except Exception as e:
-        logger.warning(f"Sentiment API failed (using fallback): {e}")
+        logger.error(f"Sentiment API failed: {e}")
 
-    # 2. Fallback Logic
-    if not proj_data:
-        seed_val = f"{project.lower()}_{datetime.now().strftime('%Y%m%d')}"
-        random.seed(seed_val)
+    # 2. Display Result (No more fake fallback)
+    if proj_data:
+        text = (f"<b>📊 Analysis for ${project.upper()}</b>\n\n"
+                f"<b>Mood:</b> {proj_data['label']}\n"
+                f"<b>Score:</b> {proj_data['score']}\n")
         
-        score = round(random.uniform(0.35, 0.95), 2)
-        if score > 0.6: label = "Bullish"
-        elif score < 0.4: label = "Bearish"
-        else: label = "Neutral"
-        
-        proj_data = {
-            "label": label,
-            "score": score
-        }
+        # Optional: Show tweets if available (as discussed before)
+        if "tweets" in proj_data and proj_data["tweets"]:
+             text += "\n<b>🗣️ Recent Chatter:</b>\n"
+             for t in proj_data["tweets"][:3]:
+                 clean_t = t[:60] + "..." if len(t) > 60 else t
+                 text += f"• <i>{clean_t}</i>\n"
 
-    # 3. Display Result
-    text = (f"<b>📊 Analysis for ${project.upper()}</b>\n\n"
-            f"<b>Mood:</b> {proj_data['label']}\n"
-            f"<b>Score:</b> {proj_data['score']}\n\n"
-            f"<i>Based on recent social activity.</i>")
-            
+        text += "\n<i>Based on recent social activity.</i>"
+    else:
+        # Honest error message
+        text = (f"<b>⚠️ No Data Found for ${project.upper()}</b>\n\n"
+                "The scraper has not collected enough data for this project yet.\n"
+                "Please try again later or check another project.")
+
     await query.message.edit_text(text, reply_markup=back_button(), parse_mode=ParseMode.HTML)
 
 # --- Feature: Mint IP ---

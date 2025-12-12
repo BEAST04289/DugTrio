@@ -93,9 +93,47 @@ We use **RoBERTa** (`cardiffnlp/twitter-roberta-base-sentiment`), a transformer 
     PRIVATE_KEY=your_wallet_private_key
     RPC_URL=https://ethereum-sepolia-rpc.publicnode.com
     API_BASE_URL=http://127.0.0.1:8000
+    DATABASE_URL=sqlite:///./dugtrio.db
     ```
-# Terminal 1: Backend
-uvicorn main:app --reload
 
-# Terminal 2: Bot
+### 🚀 Running the System (The 3-Terminal Setup)
+
+Since DugTrio uses real-time data, you need to run the backend, the bot, and the data engine simultaneously.
+
+**Terminal 1: The Backend API**
+```bash
+uvicorn main:app --reload
+```
+**Terminal 2: The Telegram Bot**
+```bash
 python bot.py
+```
+**Terminal 3: The Data Engine (Scraper & Analyzer)**
+Run these commands periodically to fetch and score new tweets.
+```bash
+   # Step 1: Fetch new tweets
+python tracker.py
+
+# Step 2: Analyze sentiment
+python analyzer.py
+    ```
+
+---
+
+## 🔧 Troubleshooting & Common Issues
+
+### ❌ "No Data Found" Error in Bot
+**Cause:** The database is empty. We removed all fake/mock data to ensure integrity.
+**Fix:** You must run the scraper and analyzer to populate the database.
+1. Run `python tracker.py` (Wait for it to fetch tweets).
+2. Run `python analyzer.py` (Wait for it to score them).
+3. Try the bot command again.
+
+### 📉 How to check how much data I have?
+We included a utility script to check your database stats:
+```bash
+python check_stats.py
+```
+### 🔗 Blockchain/Story Protocol Errors
+**Cause:** Missing PRIVATE_KEY or RPC_URL in .env.
+**Fix:** The bot will still work without blockchain features, but IP minting will fail. Ensure your .env is set up correctly if you want to test minting.
