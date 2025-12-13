@@ -19,9 +19,12 @@ def fetch_and_store(db: Session, client: tweepy.Client, project_tag: str, search
     start_time_str = start_time.strftime('%Y-%m-%dT%H:%M:%SZ')
 
     try:
+        # NOTE: X.com Free Tier Limit is 100 tweets/month.
+        # We set max_results=10 to conserve quota.
+        # If you have a Basic/Pro plan, increase this to 50 or 100.
         response = client.search_recent_tweets(
             query=search_query,
-            max_results=50,
+            max_results=10, # Minimum allowed by API is 10
             start_time=start_time_str,
             tweet_fields=["created_at", "attachments"],
             expansions=["author_id", "attachments.media_keys"]
@@ -86,6 +89,51 @@ def get_projects_to_track(db: Session) -> List[Dict[str, str]]:
 
     print(f"Found {len(projects)} projects to track.")
     return projects
+
+def run_single_project_tracker(target_project: str):
+    """
+    Runs the tracker for a single specific project.
+    Useful for on-demand updates from the bot.
+    """
+    print(f"🚀 Starting on-demand tracker for: {target_project}")
+    
+    try:
+        bearer_token = os.getenv("BEARER_TOKEN")
+        if not bearer_token:
+            print("❌ BEARER_TOKEN missing.")
+            return
+        
+        client = tweepy.Client(bearer_token=bearer_token)
+    except Exception as e:
+        print(f"❌ Auth Error: {e}")
+        return
+
+    db = SessionLocal()
+    try:
+        # 1. Get all projects (or default)
+        all_projects = get_projects_to_track(db)
+        
+        # 2. Filter for the requested one (case-insensitive)
+        # If not found in DB, we construct a default query on the fly
+        project_data = next((p for p in all_projects if p['name'].lower() == target_project.lower()), None)
+        
+        if not project_data:
+            print(f"Project {target_project} not in DB. Using default query.")
+            project_data = {
+                'name': target_project, 
+                'query': f'"{target_project}" OR "${target_project.upper()}" -is:retweet lang:en'
+            }
+
+        # 3. Fetch
+        fetch_and_store(db, client, project_data['name'], project_data['query'])
+        db.commit()
+        print(f"✅ On-demand update complete for {target_project}")
+
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        db.rollback()
+    finally:
+        db.close()
 
 def main():
     """Main function to orchestrate the data fetching process."""

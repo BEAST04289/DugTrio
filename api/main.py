@@ -18,6 +18,8 @@ from database.models import Tweet, TrackRequest, PnlCard
 
 # --- Service Imports (Fixes the errors) ---
 from services.story_service import register_ip_on_chain
+from services.tracker import run_single_project_tracker
+from services.analyzer import analyze_and_update_sentiment
 
 # --- Configuration ---
 load_dotenv()
@@ -57,9 +59,9 @@ def get_sentiment_for_bot(db: Session = Depends(get_db)):
         if avg_score is None: continue
         
         # 2. Fetch Recent Tweets
-        recent_tweets = db.query(Tweet.content).filter(
+        recent_tweets = db.query(Tweet.text).filter(
             Tweet.project_tag == project_tag
-        ).order_by(Tweet.timestamp.desc()).limit(3).all()
+        ).order_by(Tweet.created_at.desc()).limit(3).all()
         
         tweet_texts = [t[0] for t in recent_tweets]
 
@@ -124,4 +126,25 @@ async def register_sentiment_ip(project_tag: str, db: Session = Depends(get_db))
         }
     except Exception as e:
         logger.error(f"IP Registration Failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/update/{project_tag}")
+async def trigger_update(project_tag: str):
+    """
+    Triggers an on-demand scrape and analysis for a specific project.
+    Called by the bot when a user requests sentiment.
+    """
+    logger.info(f"🔄 Triggering update for {project_tag}...")
+    
+    # Run in a separate thread to avoid blocking the API
+    try:
+        # 1. Scrape (10 tweets max)
+        run_single_project_tracker(project_tag)
+        
+        # 2. Analyze
+        analyze_and_update_sentiment()
+        
+        return {"status": "updated", "project": project_tag}
+    except Exception as e:
+        logger.error(f"Update failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))

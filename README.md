@@ -56,6 +56,7 @@ We use **RoBERTa** (`cardiffnlp/twitter-roberta-base-sentiment`), a transformer 
 ### ✅ Phase 2: Proof of Intelligence (Completed)
 - [x] Connection to Story Protocol (Sepolia Testnet).
 - [x] Pipeline to mint Sentiment Reports as IP Assets.
+- [x] **Dynamic Sentiment Analysis:** Type `/sentiment <coin>` to analyze any project instantly.
 - [x] Deployment on Render.
 
 ### 🚀 Phase 3: The "World Class" Upgrade (Upcoming)
@@ -63,6 +64,9 @@ We use **RoBERTa** (`cardiffnlp/twitter-roberta-base-sentiment`), a transformer 
 - [ ] **Automated Trading:** Connect Phantom Wallet to auto-execute trades if Score > 0.85.
 - [ ] **Fake PNL Detector:** OCR feature to detect photoshopped profit screenshots.
 - [ ] **IP Marketplace:** Frontend for users to trade their high-accuracy sentiment reports.
+- [ ] **More Commands:** Add `/chart <coin>` and `/whale <coin>` for deeper insights.
+
+> **💡 Have a better idea?** We are open to discussing innovative features beyond this roadmap! If you have a cool concept for an AI agent or a new way to use Story Protocol, feel free to open an issue or a PR. We love creative contributions!
 
 ---
 
@@ -71,13 +75,15 @@ We use **RoBERTa** (`cardiffnlp/twitter-roberta-base-sentiment`), a transformer 
 ### Prerequisites
 *   Python 3.10+
 *   Telegram Bot Token
+*   **X (Twitter) Developer Account** (Essential for the scraper)
 *   Story Protocol Private Key (Sepolia)
+*   PostgreSQL Database (Recommended)
 
 ### Installation
 
 1.  **Clone the repo**
     ```bash
-    git clone https://github.com/shaurya-upadhyay/DugTrio.git
+    git clone https://github.com/BEAST04289/DugTrio.git
     cd DugTrio
     ```
 
@@ -90,15 +96,21 @@ We use **RoBERTa** (`cardiffnlp/twitter-roberta-base-sentiment`), a transformer 
     Create a `.env` file:
     ```env
     TELEGRAM_BOT_TOKEN=your_token_here
+    BEARER_TOKEN=your_twitter_api_bearer_token
     PRIVATE_KEY=your_wallet_private_key
     RPC_URL=https://ethereum-sepolia-rpc.publicnode.com
     API_BASE_URL=http://127.0.0.1:8000
-    DATABASE_URL=sqlite:///./dugtrio.db
+    DATABASE_URL=postgresql://user:password@localhost/dugtrio_db
     ```
 
-### 🚀 Running the System (The 3-Terminal Setup)
+### ⚠️ Important: X (Twitter) API Limits
+The **Free Tier** of the X API only allows **100 tweets per month**.
+*   **Default Setting:** We have set the scraper to pull only **10 tweets** per run to prevent you from burning your quota instantly.
+*   **How to Change:** If you have a paid plan (Basic/Pro), go to `services/tracker.py` and change `max_results=10` to `50` or `100`.
 
-Since DugTrio uses real-time data, you need to run the backend, the bot, and the data engine simultaneously.
+### 🚀 Running the System (The 2-Terminal Setup)
+
+Since DugTrio uses real-time data, you need to run the backend and the bot. The data engine now runs automatically when you use the bot!
 
 **Terminal 1: The Backend API**
 ```bash
@@ -108,26 +120,32 @@ uvicorn api.main:app --reload
 ```bash
 python -m bot.bot
 ```
-**Terminal 3: The Data Engine (Scraper & Analyzer)**
-Run these commands periodically to fetch and score new tweets.
-```bash
-   # Step 1: Fetch new tweets
-python -m services.tracker
 
-# Step 2: Analyze sentiment
+*(Optional) Terminal 3: Manual Data Engine*
+Only needed if you want to force a bulk update without using the bot.
+```bash
+python -m services.tracker
 python -m services.analyzer
-    ```
+```
 
 ---
 
 ## 🔧 Troubleshooting & Common Issues
 
 ### ❌ "No Data Found" Error in Bot
-**Cause:** The database is empty. We removed all fake/mock data to ensure integrity.
-**Fix:** You must run the scraper and analyzer to populate the database.
-1. Run `python -m services.tracker` (Wait for it to fetch tweets).
-2. Run `python -m services.analyzer` (Wait for it to score them).
-3. Try the bot command again.
+**Cause:** The database is empty or the X API limit (100 tweets/month) has been reached.
+**Fix:**
+1.  **Check your API Quota:** Log in to the [Twitter Developer Portal](https://developer.twitter.com/en/portal/dashboard) and ensure you haven't used all 100 tweets.
+2.  **Wait:** If you have quota, just click the button in the bot again. It now automatically tries to fetch data.
+3.  **Check Logs:** Look at the "Terminal 1" output. If it says "429 Too Many Requests", you are out of quota.
+
+### 🦊 IP Minting & MetaMask
+To use the "Mint IP" feature, you need a wallet on the **Sepolia Testnet**.
+1.  Install **MetaMask**.
+2.  Enable "Show Test Networks" in settings.
+3.  Copy your **Private Key** (Settings -> Security -> Show Private Key).
+4.  Paste it into your `.env` file as `PRIVATE_KEY`.
+5.  Get free Sepolia ETH from a faucet (e.g., Google "Sepolia Faucet") to pay for gas.
 
 ### 📉 How to check how much data I have?
 We included a utility script to check your database stats:

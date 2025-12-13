@@ -77,9 +77,19 @@ async def sentiment_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def fetch_sentiment(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    await query.answer("Analyzing tweets...")
+    # Show a "loading" notification to the user because this might take a few seconds
+    await query.answer("🔄 Fetching fresh data from X...", show_alert=False)
     project = query.data.split("_")[1]
     
+    # 0. Trigger Auto-Update (The Magic Fix)
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+             # We don't care about the response content, just that it finishes
+             await client.post(f"{API_BASE_URL}/update/{project}")
+    except Exception as e:
+        logger.error(f"Auto-update failed: {e}")
+        # We continue anyway, in case there is old data we can show
+
     proj_data = None
 
     # 1. Try to fetch real data from API
@@ -192,6 +202,59 @@ async def subscription_page(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     await update.callback_query.message.edit_text(text, reply_markup=back_button(), parse_mode=ParseMode.HTML)
 
+async def sentiment_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handles /sentiment <ticker> command."""
+    if not context.args:
+        await update.message.reply_text(
+            "⚠️ Usage: <code>/sentiment [ticker]</code>\nExample: <code>/sentiment bitcoin</code>", 
+            parse_mode=ParseMode.HTML
+        )
+        return
+
+    project = context.args[0]
+    msg = await update.message.reply_text(f"🔄 Fetching fresh data for <b>${project.upper()}</b>...", parse_mode=ParseMode.HTML)
+
+    # 1. Trigger Auto-Update
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+             await client.post(f"{API_BASE_URL}/update/{project}")
+    except Exception as e:
+        logger.error(f"Auto-update failed: {e}")
+
+    # 2. Fetch Result
+    proj_data = None
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(f"{API_BASE_URL}/sentiment", timeout=5.0)
+            if resp.status_code == 200:
+                data = resp.json()
+                if isinstance(data, list):
+                    proj_data = next((item for item in data if item.get("project_tag", "").lower() == project.lower()), None)
+    except Exception as e:
+        logger.error(f"Sentiment API failed: {e}")
+
+    if proj_data:
+        text = (f"<b>📊 Analysis for ${project.upper()}</b>\n\n"
+                f"<b>Mood:</b> {proj_data['label']}\n"
+                f"<b>Score:</b> {proj_data['score']}\n")
+        
+        if "tweets" in proj_data and proj_data["tweets"]:
+             text += "\n<b>🗣️ Recent Chatter:</b>\n"
+             for t in proj_data["tweets"][:3]:
+                 clean_t = t[:60] + "..." if len(t) > 60 else t
+                 text += f"• <i>{clean_t}</i>\n"
+
+        text += "\n<i>Based on recent social activity.</i>"
+        await msg.edit_text(text, parse_mode=ParseMode.HTML, reply_markup=back_button())
+    else:
+        await msg.edit_text(
+            f"<b>⚠️ No Data Found for ${project.upper()}</b>\n\n"
+            "The scraper could not find enough recent tweets.\n"
+            "Try a more popular project or wait a moment.",
+            parse_mode=ParseMode.HTML,
+            reply_markup=back_button()
+        )
+
 # --- Main Execution ---
 async def main():
     application = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
@@ -199,6 +262,7 @@ async def main():
     # Commands
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(CommandHandler("registerip", register_ip_command))
+    application.add_handler(CommandHandler("sentiment", sentiment_command))
 
     # Menu Callbacks
     application.add_handler(CallbackQueryHandler(start_command, pattern="^menu_start$"))
