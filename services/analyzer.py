@@ -3,8 +3,8 @@ from transformers import pipeline
 from sqlalchemy.orm import Session
 from typing import List, Optional # Add Optional for better type hinting
 
-from database import SessionLocal
-from models import Tweet, Column # Ensure Column is available for type analysis
+from database.connection import SessionLocal
+from database.models import Tweet # Ensure Column is available for type analysis
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)

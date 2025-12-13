@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean, func, ForeignKey, Index
 from sqlalchemy.orm import relationship
-from database import Base
+from database.connection import Base
 
 # This model defines the structure for storing user information in the database.
 class User(Base):

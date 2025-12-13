@@ -7,8 +7,8 @@ from io import BytesIO
 from sqlalchemy.orm import Session
 from typing import List, Optional, Dict, Any, cast
 
-from database import SessionLocal
-from models import Tweet, PnlCard
+from database.connection import SessionLocal
+from database.models import Tweet, PnlCard
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)

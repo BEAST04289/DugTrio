@@ -26,14 +26,16 @@ if STORY_PROTOCOL_ENABLED:
         
         IP_ASSET_REGISTRY_ADDRESS = "0x77319B4031e6eF1250907aa00018B8B1c67a244b" 
 
-        if os.path.exists("ip_asset_registry_abi.json"):
-            with open("ip_asset_registry_abi.json") as f:
+        # Path to the ABI file relative to this script
+        abi_path = os.path.join(os.path.dirname(__file__), "ip_asset_registry_abi.json")
+        if os.path.exists(abi_path):
+            with open(abi_path) as f:
                 IP_ASSET_REGISTRY_ABI = json.load(f)
             
             ip_asset_contract = w3.eth.contract(address=IP_ASSET_REGISTRY_ADDRESS, abi=IP_ASSET_REGISTRY_ABI)
             logger.info("✅ Story Protocol: Connected and Contract Loaded.")
         else:
-            logger.warning("⚠️ Story Protocol: ABI file not found.")
+            logger.warning(f"⚠️ Story Protocol: ABI file not found at {abi_path}.")
             STORY_PROTOCOL_ENABLED = False
             
     except Exception as e:

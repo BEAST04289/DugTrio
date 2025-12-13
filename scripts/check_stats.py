@@ -1,6 +1,6 @@
 from sqlalchemy import func
-from database import SessionLocal
-from models import Tweet
+from database.connection import SessionLocal
+from database.models import Tweet
 
 def show_stats():
     db = SessionLocal()

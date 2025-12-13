@@ -31,7 +31,7 @@ def get_db() -> Generator:
 def create_all_tables():
     """Creates all tables in the database defined by models."""
     # Import all models here to ensure they are registered with Base
-    from models import User, Tweet, TrackedWallet, TrackRequest, PnlCard, TrendingProject
+    from database.models import User, Tweet, TrackedWallet, TrackRequest, PnlCard, TrendingProject
     print("Attempting to create tables...")
     try:
         Base.metadata.create_all(bind=engine)

@@ -50,8 +50,8 @@ We use **RoBERTa** (`cardiffnlp/twitter-roberta-base-sentiment`), a transformer 
 
 ### ✅ Phase 1: The Foundation (Completed)
 - [x] Telegram Bot Interface.
-- [x] Twitter/X Scraper (`tracker.py`).
-- [x] RoBERTa Sentiment Model Integration (`analyzer.py`).
+- [x] Twitter/X Scraper (`services/tracker.py`).
+- [x] RoBERTa Sentiment Model Integration (`services/analyzer.py`).
 
 ### ✅ Phase 2: Proof of Intelligence (Completed)
 - [x] Connection to Story Protocol (Sepolia Testnet).
@@ -102,20 +102,20 @@ Since DugTrio uses real-time data, you need to run the backend, the bot, and the
 
 **Terminal 1: The Backend API**
 ```bash
-uvicorn main:app --reload
+uvicorn api.main:app --reload
 ```
 **Terminal 2: The Telegram Bot**
 ```bash
-python bot.py
+python -m bot.bot
 ```
 **Terminal 3: The Data Engine (Scraper & Analyzer)**
 Run these commands periodically to fetch and score new tweets.
 ```bash
    # Step 1: Fetch new tweets
-python tracker.py
+python -m services.tracker
 
 # Step 2: Analyze sentiment
-python analyzer.py
+python -m services.analyzer
     ```
 
 ---
@@ -125,14 +125,14 @@ python analyzer.py
 ### ❌ "No Data Found" Error in Bot
 **Cause:** The database is empty. We removed all fake/mock data to ensure integrity.
 **Fix:** You must run the scraper and analyzer to populate the database.
-1. Run `python tracker.py` (Wait for it to fetch tweets).
-2. Run `python analyzer.py` (Wait for it to score them).
+1. Run `python -m services.tracker` (Wait for it to fetch tweets).
+2. Run `python -m services.analyzer` (Wait for it to score them).
 3. Try the bot command again.
 
 ### 📉 How to check how much data I have?
 We included a utility script to check your database stats:
 ```bash
-python check_stats.py
+python -m scripts.check_stats
 ```
 ### 🔗 Blockchain/Story Protocol Errors
 **Cause:** Missing PRIVATE_KEY or RPC_URL in .env.

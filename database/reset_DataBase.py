@@ -1,7 +1,7 @@
 # Import the engine and Base from our existing database and model files.
 # The engine is our connection, and Base knows about all the tables we defined.
-from database import engine, Base
-import models # Import models to ensure they are registered with Base
+from database.connection import engine, Base
+from database import models # Import models to ensure they are registered with Base
 
 def reset_database():
     """

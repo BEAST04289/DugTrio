@@ -32,7 +32,7 @@ def ensure_bot_started():
             return
         def _runner():
             try:
-                bot_mod = importlib.import_module("bot")
+                bot_mod = importlib.import_module("bot.bot")
                 application = getattr(bot_mod, "application")
                 asyncio.run(_start_ptb_app(application))
             except Exception as e:

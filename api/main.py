@@ -13,11 +13,11 @@ from sqlalchemy.exc import IntegrityError
 from dotenv import load_dotenv
 
 # --- Database Imports ---
-from database import get_db
-from models import Tweet, TrackRequest, PnlCard
+from database.connection import get_db
+from database.models import Tweet, TrackRequest, PnlCard
 
 # --- Service Imports (Fixes the errors) ---
-from story_service import register_ip_on_chain
+from services.story_service import register_ip_on_chain
 
 # --- Configuration ---
 load_dotenv()

@@ -5,8 +5,8 @@ from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
 from typing import Dict, Any, List
 
-from database import SessionLocal
-from models import Tweet, TrackRequest
+from database.connection import SessionLocal
+from database.models import Tweet, TrackRequest
 
 # Load environment variables (needed to authenticate X client)
 load_dotenv()
