@@ -155,3 +155,27 @@ python -m scripts.check_stats
 ### 🔗 Blockchain/Story Protocol Errors
 **Cause:** Missing PRIVATE_KEY or RPC_URL in .env.
 **Fix:** The bot will still work without blockchain features, but IP minting will fail. Ensure your .env is set up correctly if you want to test minting.
+
+---
+
+### ✅ Quick API Tests (useful for troubleshooting)
+Run these from a separate terminal to verify the backend is up and the update flow works.
+
+- Check API root (should return service status):
+```powershell
+curl.exe http://127.0.0.1:8000/
+```
+
+- Get current sentiment summaries:
+```powershell
+curl.exe http://127.0.0.1:8000/sentiment
+```
+
+- Trigger an on-demand scrape + analyze for a project (example `solana`):
+```powershell
+curl.exe -X POST http://127.0.0.1:8000/update/solana
+```
+
+PowerShell note: the built-in `curl` is an alias for `Invoke-WebRequest` which may prompt before parsing web content. Use `curl.exe` or `Invoke-RestMethod -Uri 'http://127.0.0.1:8000/'` to avoid the interactive prompt.
+
+If these commands return expected JSON (e.g., `{"status":"online","service":"DugTrio Backend"}` for the root), the backend is running and the bot should be able to trigger on-demand updates.
