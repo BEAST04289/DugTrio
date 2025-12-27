@@ -6,6 +6,7 @@ from datetime import datetime
 from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.constants import ParseMode
+from telegram.error import BadRequest
 from telegram.ext import (
     Application, CommandHandler, ContextTypes, CallbackQueryHandler
 )
@@ -60,9 +61,19 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Select a tool below to get started:"
     )
     
+    async def _safe_edit(message_obj, new_text, **kwargs):
+        try:
+            await message_obj.edit_text(new_text, **kwargs)
+        except BadRequest as e:
+            # Ignore the "Message is not modified" error which occurs when content/markup didn't change
+            if "Message is not modified" in str(e):
+                logger.debug("Edit skipped: message not modified.")
+                return
+            raise
+
     if update.callback_query:
         await update.callback_query.answer()
-        await update.callback_query.message.edit_text(text, reply_markup=main_menu_keyboard(), parse_mode=ParseMode.HTML)
+        await _safe_edit(update.callback_query.message, text, reply_markup=main_menu_keyboard(), parse_mode=ParseMode.HTML)
     else:
         await update.message.reply_text(text, reply_markup=main_menu_keyboard(), parse_mode=ParseMode.HTML)
 

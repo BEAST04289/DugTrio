@@ -74,6 +74,22 @@ async def register_ip_on_chain(project_tag: str, report_data: dict) -> str:
         raw_tx = signed_tx["rawTransaction"]
 
     tx_hash = w3.eth.send_raw_transaction(raw_tx)
-    w3.eth.wait_for_transaction_receipt(tx_hash)
-    
-    return tx_hash.hex()
+    # Normalize tx hex
+    try:
+        tx_hex = tx_hash.hex()
+    except Exception:
+        try:
+            tx_hex = Web3.toHex(tx_hash)
+        except Exception:
+            tx_hex = str(tx_hash)
+
+    # Attempt to wait for receipt, but do not fail the whole flow if it remains pending.
+    try:
+        # Wait up to 5 minutes for the tx to be mined; if not mined, return tx hash so caller
+        # can display the pending transaction and let the explorer handle it.
+        w3.eth.wait_for_transaction_receipt(tx_hash, timeout=300)
+        logger.info(f"✅ Transaction mined: {tx_hex}")
+    except Exception as e:
+        logger.warning(f"⏳ Transaction not mined within timeout: {e} - returning tx hash anyway.")
+
+    return tx_hex
