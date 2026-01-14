@@ -1,4 +1,13 @@
 # 🤖 DugTrio: The Verifiable AI Intelligence Layer
+<div align="center">
+
+![Solana](https://img.shields.io/badge/Solana-Foundation_Grantee-linear?style=for-the-badge&logo=solana&color=9945FF)
+![Status](https://img.shields.io/badge/Status-Audit_Funded-success?style=for-the-badge)
+
+**Winner, 100x School & Superteam India Hackathon ($450 Prize)**
+**Recipient, Solana Foundation Audit Subsidy ($5,000 Grant)**
+
+</div>
 
 > *"Ephemeral sentiment, permanently verifiable."*
 
